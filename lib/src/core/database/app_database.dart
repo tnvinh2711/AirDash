@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:flux/src/core/database/tables/settings_table.dart';
 import 'package:flux/src/core/database/tables/transfer_history_table.dart';
+import 'package:flux/src/features/history/domain/transfer_direction.dart';
+import 'package:flux/src/features/history/domain/transfer_status.dart';
 
 part 'app_database.g.dart';
 
