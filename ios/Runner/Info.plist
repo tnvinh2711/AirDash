@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_flux._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>FLUX needs local network access to discover nearby devices for file transfer.</string>
 </dict>
 </plist>
