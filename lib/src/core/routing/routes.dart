@@ -12,4 +12,7 @@ abstract class Routes {
 
   /// The settings tab route path - app configuration.
   static const settings = '/settings';
+
+  /// The transfer history route path - nested under receive.
+  static const history = '/receive/history';
 }

@@ -11,6 +11,11 @@ Auto-generated from all feature plans. Last updated: 2025-12-05
 - N/A (in-memory state only; discovered devices are transient) (004-device-discovery)
 - Dart 3.0+ (Sound Null Safety) via Flutter stable channel (FVM) + `shelf`, `shelf_router` (HTTP server), `flutter_riverpod` + `riverpod_generator` (state), `freezed` (immutable models), `archive` (ZIP extraction), `crypto` (checksum) (005-file-transfer-server)
 - Drift (via existing `HistoryRepository` for recording transfers), file system (save received files) (005-file-transfer-server)
+- Dart 3.0+ (Sound Null Safety) via Flutter stable channel (FVM) + `dio` (HTTP client), `file_picker` (file/folder selection), `archive` (ZIP compression), `flutter_riverpod` + `riverpod_generator` (state), `freezed` (immutable models), `crypto` (checksum) (006-file-transfer-client)
+- Dart 3.0+ (Sound Null Safety) via FVM + flutter_riverpod, riverpod_annotation, freezed, go_router, drift, shared_preferences, bonsoir, flex_color_scheme, device_info_plus (007-receive-ui)
+- Drift (SQLite) for TransferHistory; Drift SettingsTable for Receive Mode and Quick Save persistence (007-receive-ui)
+- Dart 3.0+ with Sound Null Safety (Flutter Stable via FVM) + `flutter_riverpod`, `riverpod_annotation`, `freezed`, `file_picker`, `desktop_drop`, `flex_color_scheme`, `go_router` (008-send-ui)
+- Drift (SQLite) via `SettingsRepository` for selection persistence (JSON-serialized list) (008-send-ui)
 
 - Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (001-project-init)
 
@@ -30,9 +35,9 @@ tests/
 Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel: Follow standard conventions
 
 ## Recent Changes
-- 005-file-transfer-server: Added Dart 3.0+ (Sound Null Safety) via Flutter stable channel (FVM) + `shelf`, `shelf_router` (HTTP server), `flutter_riverpod` + `riverpod_generator` (state), `freezed` (immutable models), `archive` (ZIP extraction), `crypto` (checksum)
-- 004-device-discovery: Added Dart 3.0+ (Sound Null Safety) via Flutter stable channel (FVM) + `bonsoir` (mDNS), `flutter_riverpod` + `riverpod_generator` (state), `freezed` (immutable models)
-- 003-local-storage: Added Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `drift`, `drift_dev`, `sqlite3_flutter_libs`, `flutter_riverpod`, `riverpod_generator`, `freezed`
+- 008-send-ui: Added Dart 3.0+ with Sound Null Safety (Flutter Stable via FVM) + `flutter_riverpod`, `riverpod_annotation`, `freezed`, `file_picker`, `desktop_drop`, `flex_color_scheme`, `go_router`
+- 007-receive-ui: Added Dart 3.0+ (Sound Null Safety) via FVM + flutter_riverpod, riverpod_annotation, freezed, go_router, drift, shared_preferences, bonsoir, flex_color_scheme, device_info_plus
+- 006-file-transfer-client: Added Dart 3.0+ (Sound Null Safety) via Flutter stable channel (FVM) + `dio` (HTTP client), `file_picker` (file/folder selection), `archive` (ZIP compression), `flutter_riverpod` + `riverpod_generator` (state), `freezed` (immutable models), `crypto` (checksum)
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -1,5 +1,6 @@
 import 'package:flux/src/core/routing/routes.dart';
 import 'package:flux/src/core/widgets/scaffold_with_nav_bar.dart';
+import 'package:flux/src/features/receive/presentation/history_screen.dart';
 import 'package:flux/src/features/receive/presentation/receive_screen.dart';
 import 'package:flux/src/features/send/presentation/send_screen.dart';
 import 'package:flux/src/features/settings/presentation/settings_screen.dart';
@@ -13,7 +14,12 @@ final GoRouter appRouter = GoRouter(
   initialLocation: Routes.receive,
   redirect: (context, state) {
     // Redirect unknown paths to the default receive route
-    final validPaths = [Routes.receive, Routes.send, Routes.settings];
+    final validPaths = [
+      Routes.receive,
+      Routes.send,
+      Routes.settings,
+      Routes.history,
+    ];
     if (!validPaths.contains(state.matchedLocation)) {
       return Routes.receive;
     }
@@ -33,6 +39,13 @@ final GoRouter appRouter = GoRouter(
               pageBuilder: (context, state) => const NoTransitionPage(
                 child: ReceiveScreen(),
               ),
+              routes: [
+                // Nested history route
+                GoRoute(
+                  path: 'history',
+                  builder: (context, state) => const HistoryScreen(),
+                ),
+              ],
             ),
           ],
         ),

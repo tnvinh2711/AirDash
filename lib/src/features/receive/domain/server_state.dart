@@ -37,6 +37,12 @@ class ServerState with _$ServerState {
     /// Whether the HTTP server is currently running.
     @Default(false) bool isRunning,
 
+    /// Whether the server is currently starting up.
+    @Default(false) bool isStarting,
+
+    /// Whether the server is currently stopping.
+    @Default(false) bool isStopping,
+
     /// Port the server is bound to (null if not running).
     int? port,
 
@@ -63,6 +69,9 @@ class ServerState with _$ServerState {
 
   /// Whether the server is idle (running but no active transfer).
   bool get isIdle => isRunning && activeSession == null;
+
+  /// Whether the server is in a transitional state (starting or stopping).
+  bool get isTransitioning => isStarting || isStopping;
 
   /// Whether a transfer is currently in progress.
   bool get isReceiving => activeSession != null && transferProgress != null;

@@ -20,6 +20,8 @@ import 'package:uuid/uuid.dart';
 
 part 'file_server_service.g.dart';
 
+
+
 /// HTTP server service for receiving file transfers.
 ///
 /// Provides REST endpoints for handshake and file upload.
@@ -40,6 +42,23 @@ class FileServerService {
   TransferSession? _activeSession;
   Timer? _sessionTimer;
 
+  // Pre-initialized handler (lazy)
+  Handler? _handler;
+
+  Handler _getHandler() {
+    if (_handler != null) return _handler!;
+
+    final router = Router()
+      ..post('/api/v1/info', _handleHandshake)
+      ..post('/api/v1/upload', _handleUpload);
+
+    _handler = const Pipeline()
+        .addMiddleware(logRequests())
+        .addHandler(router.call);
+
+    return _handler!;
+  }
+
   /// Stream of transfer events.
   Stream<TransferEvent> get events => _eventController.stream;
 
@@ -57,6 +76,11 @@ class FileServerService {
     return null;
   }
 
+  /// Pre-initializes the handler to avoid lag on first start.
+  void warmUp() {
+    _getHandler();
+  }
+
   /// Starts the HTTP server on an available port.
   ///
   /// Returns the port number the server is bound to.
@@ -65,20 +89,14 @@ class FileServerService {
       return _server!.port;
     }
 
-    final router = Router()
-      ..post('/api/v1/info', _handleHandshake)
-      ..post('/api/v1/upload', _handleUpload);
-
-    final handler = const Pipeline()
-        .addMiddleware(logRequests())
-        .addHandler(router.call);
-
-    _server = await shelf_io.serve(
-      handler,
+    final httpServer = await HttpServer.bind(
       InternetAddress.anyIPv4,
       preferredPort,
     );
 
+    shelf_io.serveRequests(httpServer, _getHandler());
+
+    _server = httpServer;
     return _server!.port;
   }
 
@@ -315,6 +333,8 @@ class FileServerService {
 FileServerService fileServerService(Ref ref) {
   final storageService = ref.watch(fileStorageServiceProvider);
   final service = FileServerService(storageService: storageService, ref: ref);
+  // Pre-initialize handler to avoid lag on first start
+  service.warmUp();
   ref.onDispose(service.dispose);
   return service;
 }

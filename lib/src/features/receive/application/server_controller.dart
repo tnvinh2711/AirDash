@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:flux/src/core/providers/device_info_provider.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
+import 'package:flux/src/features/discovery/domain/local_device_info.dart';
 import 'package:flux/src/features/receive/data/file_server_service.dart';
 import 'package:flux/src/features/receive/domain/server_state.dart';
 import 'package:flux/src/features/receive/domain/transfer_event.dart';
@@ -38,16 +39,22 @@ class ServerController extends _$ServerController {
   /// If the server is already running, this is a no-op.
   Future<void> startServer() async {
     final currentState = state.valueOrNull ?? ServerState.stopped();
-    if (currentState.isRunning) return;
+    if (currentState.isRunning || state.isLoading) return;
+
+    // Set loading state immediately for responsive UI
+    state = const AsyncLoading<ServerState>().copyWithPrevious(state);
 
     try {
+      // Pre-fetch device info in parallel with server start
+      final deviceInfoFuture = _prefetchDeviceInfo();
+
       // Start HTTP server
       final port = await _fileServer.start();
 
       // Subscribe to transfer events
       _eventSubscription = _fileServer.events.listen(_handleTransferEvent);
 
-      // Update state with running server
+      // Update state with running server (UI can update now)
       state = AsyncData(
         currentState.copyWith(
           isRunning: true,
@@ -56,22 +63,41 @@ class ServerController extends _$ServerController {
         ),
       );
 
-      // Start discovery broadcast
-      await _startBroadcast(port);
+      // Start broadcast in background - fire and forget, don't block UI
+      unawaited(_startBroadcastInBackground(deviceInfoFuture, port));
     } catch (e) {
       developer.log(
         'Failed to start server: $e',
         name: 'ServerController',
         error: e,
       );
-      state = AsyncData(currentState.copyWith(error: e.toString()));
+      state = AsyncData(
+        currentState.copyWith(error: e.toString()),
+      );
+    }
+  }
+
+  Future<LocalDeviceInfo?> _prefetchDeviceInfo() async {
+    try {
+      final deviceInfoProvider = ref.read(deviceInfoProviderProvider);
+      return await deviceInfoProvider.getLocalDeviceInfo();
+    } catch (e) {
+      developer.log(
+        'Failed to get device info: $e',
+        name: 'ServerController',
+        level: 900,
+      );
+      return null;
     }
   }
 
   /// Stops the HTTP server and discovery broadcast.
   Future<void> stopServer() async {
     final currentState = state.valueOrNull ?? ServerState.stopped();
-    if (!currentState.isRunning) return;
+    if (!currentState.isRunning || state.isLoading) return;
+
+    // Set loading state immediately for responsive UI
+    state = const AsyncLoading<ServerState>().copyWithPrevious(state);
 
     try {
       // Stop discovery broadcast first
@@ -94,7 +120,9 @@ class ServerController extends _$ServerController {
         name: 'ServerController',
         error: e,
       );
-      state = AsyncData(currentState.copyWith(error: e.toString()));
+      state = AsyncData(
+        currentState.copyWith(error: e.toString()),
+      );
     }
   }
 
@@ -108,25 +136,36 @@ class ServerController extends _$ServerController {
     }
   }
 
-  Future<void> _startBroadcast(int port) async {
+  /// Starts mDNS broadcast in background without blocking UI.
+  Future<void> _startBroadcastInBackground(
+    Future<LocalDeviceInfo?> deviceInfoFuture,
+    int port,
+  ) async {
     try {
-      final deviceInfoProvider = ref.read(deviceInfoProviderProvider);
-      final deviceInfo = await deviceInfoProvider.getLocalDeviceInfo();
+      final deviceInfo = await deviceInfoFuture;
+      if (deviceInfo == null) return;
+
       final infoWithPort = deviceInfo.copyWith(port: port);
+
+      // Ensure discovery controller is ready
+      await ref.read(discoveryControllerProvider.future);
 
       final discoveryController = ref.read(
         discoveryControllerProvider.notifier,
       );
+
       await discoveryController.startBroadcast(infoWithPort);
 
-      final currentState = state.valueOrNull ?? ServerState.stopped();
-      state = AsyncData(currentState.copyWith(isBroadcasting: true));
+      // Update broadcast state
+      final newState = state.valueOrNull;
+      if (newState != null) {
+        state = AsyncData(newState.copyWith(isBroadcasting: true));
+      }
     } catch (e) {
-      // Log warning but don't fail - server can still work without broadcast
       developer.log(
-        'Failed to start discovery broadcast: $e',
+        'Failed to start broadcast: $e',
         name: 'ServerController',
-        level: 900, // Warning level
+        level: 900,
       );
     }
   }

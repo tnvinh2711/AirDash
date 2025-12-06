@@ -40,12 +40,13 @@ void main() {
       final state = await container.read(serverControllerProvider.future);
       expect(state.isRunning, isFalse);
       expect(state.port, isNull);
-      expect(state.isBroadcasting, isFalse);
     });
 
     test('startServer starts HTTP server', () async {
-      final controller = container.read(serverControllerProvider.notifier);
+      // Wait for build() to complete
+      await container.read(serverControllerProvider.future);
 
+      final controller = container.read(serverControllerProvider.notifier);
       await controller.startServer();
 
       final state = await container.read(serverControllerProvider.future);
@@ -55,6 +56,9 @@ void main() {
     });
 
     test('stopServer stops HTTP server', () async {
+      // Wait for build() to complete
+      await container.read(serverControllerProvider.future);
+
       final controller = container.read(serverControllerProvider.notifier);
 
       await controller.startServer();
@@ -65,37 +69,47 @@ void main() {
       expect(state.port, isNull);
     });
 
-    test('toggleServer starts when stopped', () async {
-      final controller = container.read(serverControllerProvider.notifier);
-
-      await controller.toggleServer();
-
-      final state = await container.read(serverControllerProvider.future);
-      expect(state.isRunning, isTrue);
-    });
-
-    test('toggleServer stops when running', () async {
-      final controller = container.read(serverControllerProvider.notifier);
-
-      await controller.startServer();
-      await controller.toggleServer();
-
-      final state = await container.read(serverControllerProvider.future);
-      expect(state.isRunning, isFalse);
-    });
-
     test('startServer is idempotent', () async {
+      // Wait for build() to complete
+      await container.read(serverControllerProvider.future);
+
       final controller = container.read(serverControllerProvider.notifier);
 
       await controller.startServer();
+
       final state1 = await container.read(serverControllerProvider.future);
       final port1 = state1.port;
+      expect(state1.isRunning, isTrue, reason: 'Server should be running after startServer');
 
+      // Call startServer again - should be no-op
       await controller.startServer();
+
       final state2 = await container.read(serverControllerProvider.future);
       final port2 = state2.port;
 
       expect(port1, equals(port2));
+    });
+
+    test('startServer restarts after stopServer', () async {
+      // Wait for build() to complete
+      await container.read(serverControllerProvider.future);
+
+      final controller = container.read(serverControllerProvider.notifier);
+
+      await controller.startServer();
+      await controller.stopServer();
+
+      // Verify stopped
+      var state = await container.read(serverControllerProvider.future);
+      expect(state.isRunning, isFalse);
+
+      // Manually restart - get fresh notifier reference after state change
+      final controller2 = container.read(serverControllerProvider.notifier);
+      await controller2.startServer();
+
+      state = await container.read(serverControllerProvider.future);
+      expect(state.isRunning, isTrue);
+      expect(state.port, isNotNull);
     });
   });
 }

@@ -122,6 +122,38 @@ class DeviceInfoProvider {
       port: getPort(),
     );
   }
+
+  /// Gets the device's local IP address for display.
+  ///
+  /// Returns `null` if no suitable network connection is available.
+  /// Filters out loopback, Docker, and virtual interfaces.
+  Future<String?> getLocalIpAddress() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+
+      for (final interface in interfaces) {
+        // Skip loopback and virtual interfaces
+        if (interface.name.startsWith('lo') ||
+            interface.name.startsWith('docker') ||
+            interface.name.startsWith('veth') ||
+            interface.name.startsWith('br-')) {
+          continue;
+        }
+
+        for (final addr in interface.addresses) {
+          if (!addr.isLoopback) {
+            return addr.address;
+          }
+        }
+      }
+      return null; // No network connection
+    } catch (_) {
+      return null; // Error retrieving network interfaces
+    }
+  }
 }
 
 /// Provider for [DeviceInfoProvider].

@@ -76,6 +76,60 @@ class SettingsRepository {
   /// [port] must be a valid port number (1-65535).
   Future<void> setPort(int port) =>
       setSetting(SettingKeys.port, port.toString());
+
+  // ============================================================
+  // Receive Mode Settings
+  // ============================================================
+
+  /// Gets whether Receive Mode is enabled.
+  ///
+  /// Returns `false` if not set (default for fresh install).
+  Future<bool> getReceiveMode() async {
+    final value = await getSetting(SettingKeys.receiveMode);
+    return value == 'true';
+  }
+
+  /// Sets whether Receive Mode is enabled.
+  Future<void> setReceiveMode({required bool enabled}) =>
+      setSetting(SettingKeys.receiveMode, enabled.toString());
+
+  // ============================================================
+  // Quick Save Settings
+  // ============================================================
+
+  /// Gets whether Quick Save is enabled.
+  ///
+  /// Returns `false` if not set (default for fresh install).
+  Future<bool> getQuickSave() async {
+    final value = await getSetting(SettingKeys.quickSave);
+    return value == 'true';
+  }
+
+  /// Sets whether Quick Save is enabled.
+  Future<void> setQuickSave({required bool enabled}) =>
+      setSetting(SettingKeys.quickSave, enabled.toString());
+
+  // ============================================================
+  // Selection Queue Persistence
+  // ============================================================
+
+  /// Gets the persisted selection queue as a JSON string.
+  ///
+  /// Returns `null` if no queue is persisted.
+  Future<String?> getSelectionQueue() =>
+      getSetting(SettingKeys.selectionQueue);
+
+  /// Sets the selection queue as a JSON string.
+  ///
+  /// [jsonString] should be a JSON-encoded array of SelectedItem objects.
+  Future<void> setSelectionQueue(String jsonString) =>
+      setSetting(SettingKeys.selectionQueue, jsonString);
+
+  /// Clears the persisted selection queue.
+  Future<void> clearSelectionQueue() async {
+    // Delete by setting to empty string (or we could add a delete method)
+    await setSetting(SettingKeys.selectionQueue, '[]');
+  }
 }
 
 // ============================================================
@@ -92,6 +146,15 @@ abstract final class SettingKeys {
 
   /// Network port key.
   static const String port = 'port';
+
+  /// Receive mode enabled key.
+  static const String receiveMode = 'receive_mode';
+
+  /// Quick save enabled key.
+  static const String quickSave = 'quick_save';
+
+  /// Selection queue persistence key (JSON array).
+  static const String selectionQueue = 'selection_queue';
 }
 
 // ============================================================

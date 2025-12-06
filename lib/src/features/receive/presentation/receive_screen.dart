@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/core/routing/routes.dart';
 import 'package:flux/src/features/receive/application/server_controller.dart';
 import 'package:flux/src/features/receive/domain/server_state.dart';
+import 'package:flux/src/features/receive/presentation/widgets/identity_card.dart';
+import 'package:flux/src/features/receive/presentation/widgets/quick_save_switch.dart';
+import 'package:flux/src/features/receive/presentation/widgets/server_status_card.dart';
+import 'package:go_router/go_router.dart';
 
 /// The Receive screen - displays content for receiving files from peers.
 ///
-/// Shows server status, toggle button, and transfer progress when active.
+/// Shows device identity, server toggle, quick save switch, and transfer progress.
 class ReceiveScreen extends ConsumerWidget {
   /// Creates a [ReceiveScreen] widget.
   const ReceiveScreen({super.key});
@@ -18,6 +23,13 @@ class ReceiveScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Receive'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Transfer History',
+            onPressed: () => context.push(Routes.history),
+          ),
+        ],
       ),
       body: serverStateAsync.when(
         data: (state) => _buildContent(context, ref, state),
@@ -44,127 +56,64 @@ class ReceiveScreen extends ConsumerWidget {
   Widget _buildContent(BuildContext context, WidgetRef ref, ServerState state) {
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Status icon
-            _buildStatusIcon(state),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          // Identity Card with pulsing avatar
+          IdentityCard(isReceiving: state.isRunning),
+          const SizedBox(height: 32),
+
+          // Server Status (read-only, auto-started)
+          const ServerStatusCard(),
+          const SizedBox(height: 16),
+
+          // Quick Save Switch
+          const QuickSaveSwitch(),
+
+          // Transfer progress
+          if (state.isReceiving && state.transferProgress != null) ...[
             const SizedBox(height: 24),
-
-            // Status text
-            Text(
-              state.statusText,
-              style: theme.textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-
-            // Port info when running
-            if (state.isRunning && state.port != null)
-              Text(
-                'Listening on port ${state.port}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-
-            // Broadcast status
-            if (state.isRunning)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      state.isBroadcasting ? Icons.wifi : Icons.wifi_off,
-                      size: 16,
-                      color: state.isBroadcasting
-                          ? Colors.green
-                          : theme.colorScheme.outline,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      state.isBroadcasting
-                          ? 'Discoverable'
-                          : 'Not discoverable',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: state.isBroadcasting
-                            ? Colors.green
-                            : theme.colorScheme.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Transfer progress
-            if (state.isReceiving && state.transferProgress != null) ...[
-              const SizedBox(height: 24),
-              _buildProgressIndicator(context, state),
-            ],
-
-            // Completed transfer info
-            if (state.hasRecentCompletion && state.lastCompleted != null) ...[
-              const SizedBox(height: 24),
-              _buildCompletedInfo(context, state.lastCompleted!),
-            ],
-
-            // Error message
-            if (state.error != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.warning_amber,
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        state.error!,
-                        style: TextStyle(
-                          color: theme.colorScheme.onErrorContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 32),
-
-            // Toggle button
-            _buildToggleButton(context, ref, state),
+            _buildProgressIndicator(context, state),
           ],
-        ),
+
+          // Completed transfer info
+          if (state.hasRecentCompletion && state.lastCompleted != null) ...[
+            const SizedBox(height: 24),
+            _buildCompletedInfo(context, state.lastCompleted!),
+          ],
+
+          // Error message
+          if (state.error != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.warning_amber,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      state.error!,
+                      style: TextStyle(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
-    );
-  }
-
-  Widget _buildStatusIcon(ServerState state) {
-    if (state.isReceiving) {
-      return const SizedBox(
-        width: 80,
-        height: 80,
-        child: CircularProgressIndicator(strokeWidth: 6),
-      );
-    }
-
-    return Icon(
-      state.isRunning ? Icons.download : Icons.download_outlined,
-      size: 80,
-      color: state.isRunning ? Colors.green : Colors.blueGrey,
     );
   }
 
@@ -268,24 +217,6 @@ class ReceiveScreen extends ConsumerWidget {
             textAlign: TextAlign.center,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildToggleButton(
-    BuildContext context,
-    WidgetRef ref,
-    ServerState state,
-  ) {
-    final controller = ref.read(serverControllerProvider.notifier);
-
-    return FilledButton.icon(
-      onPressed: state.isReceiving ? null : controller.toggleServer,
-      icon: Icon(state.isRunning ? Icons.stop : Icons.play_arrow),
-      label: Text(state.isRunning ? 'Stop Server' : 'Start Server'),
-      style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        backgroundColor: state.isRunning ? Colors.red : null,
       ),
     );
   }
