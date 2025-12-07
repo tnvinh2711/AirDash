@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/history/application/history_provider.dart';
@@ -39,6 +41,9 @@ class FileServerService {
   final _eventController = StreamController<TransferEvent>.broadcast();
 
   HttpServer? _server;
+  ServerSocket? _serverSocket;
+  StreamSubscription<Socket>? _socketSubscription;
+  StreamSubscription<HttpRequest>? _httpSubscription;
   TransferSession? _activeSession;
   Timer? _sessionTimer;
 
@@ -86,18 +91,44 @@ class FileServerService {
   /// Returns the port number the server is bound to.
   Future<int> start({int preferredPort = 0}) async {
     if (_server != null) {
+      developer.log(
+        'Server already running on port ${_server!.port}',
+        name: 'FileServerService',
+      );
       return _server!.port;
     }
 
-    final httpServer = await HttpServer.bind(
-      InternetAddress.anyIPv4,
-      preferredPort,
-    );
+    print('[FileServerService] Attempting to start server on port $preferredPort');
 
-    shelf_io.serveRequests(httpServer, _getHandler());
+    try {
+      // Use fixed port 53318 for testing (near LocalSend's 53317)
+      final testPort = preferredPort == 0 ? 53318 : preferredPort;
+      print('[FileServerService] Trying to start server in isolate on port $testPort');
 
-    _server = httpServer;
-    return _server!.port;
+      // Create a ReceivePort to get the server port from isolate
+      final receivePort = ReceivePort();
+
+      // Spawn isolate to run server
+      await Isolate.spawn(
+        _serverIsolateEntry,
+        _IsolateParams(sendPort: receivePort.sendPort, port: testPort),
+      );
+
+      // Wait for server to start and get the port
+      final result = await receivePort.first;
+      if (result is int) {
+        print('[FileServerService] Server started in isolate on port $result');
+        return result;
+      } else if (result is String) {
+        print('[FileServerService] Server error: $result');
+        throw Exception(result);
+      }
+
+      throw Exception('Unexpected result from isolate: $result');
+    } catch (e, stack) {
+      print('[FileServerService] Failed to start server: $e\n$stack');
+      rethrow;
+    }
   }
 
   /// Stops the HTTP server.
@@ -105,6 +136,12 @@ class FileServerService {
     _sessionTimer?.cancel();
     _sessionTimer = null;
     _activeSession = null;
+    await _httpSubscription?.cancel();
+    _httpSubscription = null;
+    await _socketSubscription?.cancel();
+    _socketSubscription = null;
+    await _serverSocket?.close();
+    _serverSocket = null;
     await _server?.close(force: true);
     _server = null;
   }
@@ -160,8 +197,10 @@ class FileServerService {
 
       // Create session
       final sessionId = _uuid.v4();
-      _activeSession = TransferSession.create(
+      final requestId = _uuid.v4();
+      _activeSession = TransferSession.accepted(
         sessionId: sessionId,
+        requestId: requestId,
         metadata: metadata,
       );
 
@@ -212,7 +251,7 @@ class FileServerService {
     }
 
     _sessionTimer?.cancel();
-    _activeSession = _activeSession!.copyWith(status: SessionStatus.receiving);
+    _activeSession = _activeSession!.copyWith(status: SessionStatus.inProgress);
     _eventController.add(UploadStartedEvent(sessionId));
 
     try {
@@ -291,7 +330,7 @@ class FileServerService {
     _sessionTimer = Timer(TransferSession.timeout, () {
       if (_activeSession != null) {
         _activeSession =
-            _activeSession!.copyWith(status: SessionStatus.expired);
+            _activeSession!.copyWith(status: SessionStatus.cancelled);
         _eventController.add(const UploadFailedEvent('session_expired'));
         _clearSession();
       }
@@ -337,4 +376,66 @@ FileServerService fileServerService(Ref ref) {
   service.warmUp();
   ref.onDispose(service.dispose);
   return service;
+}
+
+
+
+/// A minimal HttpServer wrapper for raw ServerSocket for compatibility.
+class _RawSocketHttpServer implements HttpServer {
+  final ServerSocket _serverSocket;
+
+  _RawSocketHttpServer(this._serverSocket);
+
+  @override
+  InternetAddress get address => _serverSocket.address;
+
+  @override
+  int get port => _serverSocket.port;
+
+  @override
+  Future<void> close({bool force = false}) async {
+    await _serverSocket.close();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Parameters for server isolate
+class _IsolateParams {
+  final SendPort sendPort;
+  final int port;
+
+  _IsolateParams({required this.sendPort, required this.port});
+}
+
+/// Entry point for server isolate
+void _serverIsolateEntry(_IsolateParams params) async {
+  print('[ServerIsolate] Starting server on port ${params.port}');
+
+  try {
+    final httpServer = await HttpServer.bind(
+      InternetAddress.anyIPv4,
+      params.port,
+    );
+
+    print('[ServerIsolate] HttpServer.bind succeeded: ${httpServer.address.address}:${httpServer.port}');
+
+    // Send port back to main isolate
+    params.sendPort.send(httpServer.port);
+
+    // Handle requests
+    httpServer.listen((HttpRequest request) {
+      print('[ServerIsolate] Received request: ${request.method} ${request.uri.path}');
+      request.response.statusCode = 200;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write('{"status":"ok","port":${httpServer.port}}');
+      request.response.close();
+    });
+
+    print('[ServerIsolate] Server listening...');
+  } catch (e, stack) {
+    print('[ServerIsolate] Error: $e\n$stack');
+    params.sendPort.send('Error: $e');
+  }
 }

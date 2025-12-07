@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:faker/faker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/discovery/domain/device_type.dart';
 import 'package:flux/src/features/discovery/domain/local_device_info.dart';
@@ -10,6 +11,24 @@ part 'device_info_provider.g.dart';
 
 /// Default port for the file transfer service.
 const int kDefaultPort = 8080;
+
+/// Generates a unique device name using faker.
+/// Uses a seed based on device-specific info for consistency.
+String _generateUniqueDeviceName(String deviceId) {
+  // Use device ID hash as seed for consistent name per device
+  final seed = deviceId.hashCode.abs();
+  final fakerInstance = Faker.withGenerator(RandomGenerator(seed: seed));
+
+  // Generate a memorable name: color + animal
+  final color = fakerInstance.color.commonColor();
+  final animal = fakerInstance.animal.name();
+
+  // Capitalize first letters
+  final colorCapitalized = color[0].toUpperCase() + color.substring(1);
+  final animalCapitalized = animal[0].toUpperCase() + animal.substring(1);
+
+  return '$colorCapitalized $animalCapitalized';
+}
 
 /// Provider for device information operations.
 ///
@@ -79,26 +98,34 @@ class DeviceInfoProvider {
     return Platform.operatingSystem;
   }
 
-  /// Gets the device alias (hostname or device name).
+  /// Gets the device alias using faker-generated unique name.
+  ///
+  /// Generates a consistent unique name based on device-specific identifier.
   // TODO(settings): Add settings fallback for user-configured alias.
   Future<String> getAlias() async {
+    String deviceId;
+
     if (Platform.isAndroid) {
       final info = await _deviceInfo.androidInfo;
-      return info.model;
+      // Use Android ID for unique identification
+      deviceId = info.id;
     } else if (Platform.isIOS) {
       final info = await _deviceInfo.iosInfo;
-      return info.name;
+      deviceId = info.identifierForVendor ?? info.name;
     } else if (Platform.isMacOS) {
       final info = await _deviceInfo.macOsInfo;
-      return info.computerName;
+      deviceId = info.systemGUID ?? info.computerName;
     } else if (Platform.isWindows) {
       final info = await _deviceInfo.windowsInfo;
-      return info.computerName;
+      deviceId = info.deviceId;
     } else if (Platform.isLinux) {
       final info = await _deviceInfo.linuxInfo;
-      return info.machineId ?? Platform.localHostname;
+      deviceId = info.machineId ?? Platform.localHostname;
+    } else {
+      deviceId = Platform.localHostname;
     }
-    return Platform.localHostname;
+
+    return _generateUniqueDeviceName(deviceId);
   }
 
   /// Gets the port for the file transfer service.
@@ -113,6 +140,7 @@ class DeviceInfoProvider {
       getAlias(),
       getDeviceType(),
       getOperatingSystem(),
+      getAllIpAddresses(),
     ]);
 
     return LocalDeviceInfo(
@@ -120,6 +148,7 @@ class DeviceInfoProvider {
       deviceType: results[1] as DeviceType,
       os: results[2] as String,
       port: getPort(),
+      ipAddresses: results[3] as List<String>,
     );
   }
 
@@ -128,12 +157,22 @@ class DeviceInfoProvider {
   /// Returns `null` if no suitable network connection is available.
   /// Filters out loopback, Docker, and virtual interfaces.
   Future<String?> getLocalIpAddress() async {
+    final addresses = await getAllIpAddresses();
+    return addresses.isNotEmpty ? addresses.first : null;
+  }
+
+  /// Gets all local IPv4 addresses for broadcasting.
+  ///
+  /// Returns a list of all valid IPv4 addresses on non-virtual interfaces.
+  /// Filters out loopback, Docker, and virtual interfaces.
+  Future<List<String>> getAllIpAddresses() async {
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLinkLocal: false,
       );
 
+      final addresses = <String>[];
       for (final interface in interfaces) {
         // Skip loopback and virtual interfaces
         if (interface.name.startsWith('lo') ||
@@ -145,13 +184,13 @@ class DeviceInfoProvider {
 
         for (final addr in interface.addresses) {
           if (!addr.isLoopback) {
-            return addr.address;
+            addresses.add(addr.address);
           }
         }
       }
-      return null; // No network connection
+      return addresses;
     } catch (_) {
-      return null; // Error retrieving network interfaces
+      return []; // Error retrieving network interfaces
     }
   }
 }

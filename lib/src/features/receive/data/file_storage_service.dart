@@ -39,12 +39,26 @@ class FileStorageService {
   ///
   /// Returns the configured receive folder, or the platform's Downloads
   /// directory if not configured.
+  ///
+  /// On Android, uses the public Downloads folder (/storage/emulated/0/Download)
+  /// for better user accessibility. On other platforms, uses the system
+  /// downloads directory or app documents folder.
   Future<String> getReceiveFolder() async {
     if (_receiveFolder != null) {
       return _receiveFolder;
     }
 
-    // Use Downloads directory on desktop, app documents on mobile
+    // On Android, use public Downloads folder for better accessibility
+    if (Platform.isAndroid) {
+      const publicDownloads = '/storage/emulated/0/Download';
+      final dir = Directory(publicDownloads);
+      if (await dir.exists()) {
+        return publicDownloads;
+      }
+      // Fallback to app-specific folder if public Downloads doesn't exist
+    }
+
+    // Use Downloads directory on desktop, app documents on mobile (fallback)
     final dir = await getDownloadsDirectory() ??
         await getApplicationDocumentsDirectory();
     return dir.path;

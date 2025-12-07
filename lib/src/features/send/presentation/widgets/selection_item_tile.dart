@@ -76,9 +76,7 @@ class SelectionItemTile extends ConsumerWidget {
     }
   }
 
-  Future<void> _removeItem(WidgetRef ref) async {
-    await ref
-        .read(fileSelectionControllerProvider.notifier)
-        .removeItem(item.id);
+  void _removeItem(WidgetRef ref) {
+    ref.read(fileSelectionControllerProvider.notifier).removeItem(item.id);
   }
 }

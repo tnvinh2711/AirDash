@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:bonsoir/bonsoir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,12 +84,54 @@ class DiscoveryRepository {
       attributes: info.toTxtAttributes(),
     );
 
+    developer.log(
+      'Starting broadcast: name=${service.name}, type=${service.type}, port=${service.port}, attributes=${service.attributes}',
+      name: 'DiscoveryRepository',
+    );
+
     _broadcast = BonsoirBroadcast(service: service);
     await _broadcast!.initialize();
+
+    // Track the actual service name (may be modified if name conflict occurs)
+    var actualServiceName = service.name;
+
+    // Listen to broadcast events for debugging and name conflict handling
+    _broadcast!.eventStream?.listen(
+      (event) {
+        developer.log(
+          'Broadcast event: ${event.runtimeType} - ${event.service?.name}',
+          name: 'DiscoveryRepository',
+        );
+
+        // Handle name conflict - update our tracked service name
+        if (event is BonsoirBroadcastNameAlreadyExistsEvent) {
+          final newName = event.service.name;
+          developer.log(
+            'Service name conflict, renamed to: $newName',
+            name: 'DiscoveryRepository',
+          );
+          actualServiceName = newName;
+          _ownServiceInstanceName = newName;
+        }
+      },
+      onError: (Object error) {
+        developer.log(
+          'Broadcast error: $error',
+          name: 'DiscoveryRepository',
+          level: 1000,
+        );
+      },
+    );
+
     await _broadcast!.start();
 
-    _ownServiceInstanceName = service.name;
-    return service.name;
+    developer.log(
+      'Broadcast started successfully for ${service.name}',
+      name: 'DiscoveryRepository',
+    );
+
+    _ownServiceInstanceName = actualServiceName;
+    return actualServiceName;
   }
 
   /// Stops broadcasting this device's presence.
@@ -137,42 +180,91 @@ class DiscoveryRepository {
     BonsoirDiscoveryEvent event,
     StreamController<DiscoveryEvent> controller,
   ) {
+    developer.log(
+      'Discovery event: ${event.runtimeType}',
+      name: 'DiscoveryRepository',
+    );
+
     switch (event) {
       case BonsoirDiscoveryServiceFoundEvent():
         // Service found but not yet resolved - trigger resolution
+        final discovery = _discovery;
+        if (discovery == null) return;
         final service = event.service;
-        service.resolve(_discovery!.serviceResolver);
+        developer.log(
+          'Service FOUND: name=${service.name}, type=${service.type}, port=${service.port}, host=${service.host}',
+          name: 'DiscoveryRepository',
+        );
+        service.resolve(discovery.serviceResolver);
       case BonsoirDiscoveryServiceResolvedEvent():
         final service = event.service;
-        final device = _parseDevice(service);
-        if (device != null) {
-          controller.add(DeviceFoundEvent(device));
-        }
+        developer.log(
+          'Service RESOLVED: name=${service.name}, type=${service.type}, port=${service.port}, host=${service.host}, attributes=${service.attributes}',
+          name: 'DiscoveryRepository',
+        );
+        // Parse device async to resolve hostname to IP
+        _parseDeviceAsync(service).then((device) {
+          if (device != null) {
+            developer.log(
+              'Device parsed: ${device.alias} at ${device.ip}:${device.port}',
+              name: 'DiscoveryRepository',
+            );
+            controller.add(DeviceFoundEvent(device));
+          } else {
+            developer.log(
+              'Device parse returned null for ${service.name}',
+              name: 'DiscoveryRepository',
+            );
+          }
+        });
       case BonsoirDiscoveryServiceLostEvent():
         final service = event.service;
+        developer.log(
+          'Service LOST: ${service.name}',
+          name: 'DiscoveryRepository',
+        );
         controller.add(DeviceLostEvent(service.name));
       case BonsoirDiscoveryServiceUpdatedEvent():
         final service = event.service;
-        final device = _parseDevice(service);
-        if (device != null) {
-          controller.add(DeviceUpdatedEvent(device));
-        }
+        developer.log(
+          'Service UPDATED: name=${service.name}, port=${service.port}, host=${service.host}',
+          name: 'DiscoveryRepository',
+        );
+        _parseDeviceAsync(service).then((device) {
+          if (device != null) {
+            controller.add(DeviceUpdatedEvent(device));
+          }
+        });
       default:
         // Lifecycle events - no action needed
         break;
     }
   }
 
-  Device? _parseDevice(BonsoirService service) {
+  Future<Device?> _parseDeviceAsync(BonsoirService service) async {
     // host is null if the service has not been resolved yet
     if (service.host == null) {
       return null;
     }
 
     final attributes = service.attributes;
+
+    // REQUIRE ips attribute - devices without it are running old code
+    // and their broadcast may be stale. This prevents stale entries from
+    // overwriting valid ones with incorrect ports.
+    final ip = _getIpFromAttributes(attributes);
+    if (ip == null) {
+      developer.log(
+        'Skipping device without ips attribute: ${service.name} '
+        '(old broadcast or stale cache)',
+        name: 'DiscoveryRepository',
+      );
+      return null;
+    }
+
     return Device(
       serviceInstanceName: service.name,
-      ip: service.host!,
+      ip: ip,
       port: service.port,
       alias: attributes['alias'] ?? service.name,
       deviceType: DeviceType.fromString(attributes['deviceType'] ?? 'unknown'),
@@ -181,6 +273,28 @@ class DiscoveryRepository {
     );
   }
 
+  /// Extracts the first valid IP address from TXT record attributes.
+  String? _getIpFromAttributes(Map<String, String> attributes) {
+    final ipsString = attributes['ips'];
+    if (ipsString == null || ipsString.isEmpty) {
+      return null;
+    }
+
+    // Parse comma-separated IPs and return the first one
+    final ips = ipsString.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+    for (final ip in ips) {
+      // Validate it looks like an IPv4 address
+      final ipv4Regex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+      if (ipv4Regex.hasMatch(ip)) {
+        developer.log(
+          'Using IP from TXT record: $ip',
+          name: 'DiscoveryRepository',
+        );
+        return ip;
+      }
+    }
+    return null;
+  }
   /// Stops scanning for devices.
   Future<void> stopScan() async {
     await _discovery?.stop();
@@ -195,7 +309,7 @@ class DiscoveryRepository {
 }
 
 /// Provider for [DiscoveryRepository].
-@riverpod
+@Riverpod(keepAlive: true)
 DiscoveryRepository discoveryRepository(Ref ref) {
   final repository = DiscoveryRepository();
   ref.onDispose(repository.dispose);

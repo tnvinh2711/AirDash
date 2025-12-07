@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:flux/src/features/discovery/data/discovery_repository.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
@@ -12,12 +14,18 @@ part 'discovery_controller.g.dart';
 ///
 /// Uses [DiscoveryRepository] for mDNS operations and maintains
 /// the current discovery state including discovered devices.
-@riverpod
+///
+/// Keep alive to prevent broadcast from being stopped when provider
+/// is not watched.
+@Riverpod(keepAlive: true)
 class DiscoveryController extends _$DiscoveryController {
   StreamSubscription<DiscoveryEvent>? _scanSubscription;
   Timer? _stalenessTimer;
-  static const _stalenessCheckInterval = Duration(seconds: 10);
-  static const _stalenessTimeout = Duration(seconds: 30);
+  static const _stalenessCheckInterval = Duration(seconds: 30);
+  static const _stalenessTimeout = Duration(seconds: 90);
+
+  /// Own device's IP address for self-filtering (set externally).
+  String? _ownIpAddress;
 
   @override
   Future<DiscoveryState> build() async {
@@ -34,12 +42,27 @@ class DiscoveryController extends _$DiscoveryController {
 
   DiscoveryRepository get _repository => ref.read(discoveryRepositoryProvider);
 
+  /// Sets the own IP address for self-filtering.
+  ///
+  /// Call this before starting scan to filter out own device.
+  void setOwnIpAddress(String? ip) {
+    _ownIpAddress = ip;
+    developer.log(
+      'Own IP address set to: $ip',
+      name: 'DiscoveryController',
+    );
+  }
+
   /// Starts scanning for devices on the network.
   Future<void> startScan() async {
     final currentState = state.valueOrNull ?? DiscoveryState.initial();
     if (currentState.isScanning) return;
 
-    state = AsyncData(currentState.copyWith(isScanning: true, error: null));
+    // Keep existing devices when starting scan (don't clear)
+    state = AsyncData(currentState.copyWith(
+      isScanning: true,
+      error: null,
+    ));
 
     try {
       final stream = _repository.startScan();
@@ -60,8 +83,9 @@ class DiscoveryController extends _$DiscoveryController {
 
     await _repository.stopScan();
 
+    // Keep devices when stopping scan (don't clear)
     final currentState = state.valueOrNull ?? DiscoveryState.initial();
-    state = AsyncData(currentState.copyWith(isScanning: false, devices: []));
+    state = AsyncData(currentState.copyWith(isScanning: false));
   }
 
   /// Starts broadcasting this device's presence.
@@ -122,33 +146,189 @@ class DiscoveryController extends _$DiscoveryController {
     final currentState = state.valueOrNull;
     if (currentState == null) return;
 
-    // Self-filtering: skip if this is our own device
+    // Self-filtering by service name
     if (currentState.ownServiceInstanceName != null &&
         device.serviceInstanceName == currentState.ownServiceInstanceName) {
+      developer.log(
+        'Filtered own device by service name: ${device.serviceInstanceName}',
+        name: 'DiscoveryController',
+      );
+      return;
+    }
+
+    // Self-filtering by IP address
+    if (_ownIpAddress != null && device.ip == _ownIpAddress) {
+      developer.log(
+        'Filtered own device by IP: ${device.ip}',
+        name: 'DiscoveryController',
+      );
       return;
     }
 
     final devices = List<Device>.from(currentState.devices);
-    final existingIndex = devices.indexWhere(
+
+    // Deduplicate by IP address only (same device may use different ports
+    // on restart)
+    final existingByIpIndex = devices.indexWhere((d) => d.ip == device.ip);
+
+    // Also check by service instance name for updates
+    final existingByNameIndex = devices.indexWhere(
       (d) => d.serviceInstanceName == device.serviceInstanceName,
     );
 
+    // Handle case where both indices are found but different
+    // (shouldn't happen normally)
+    final hasBothDifferent = existingByIpIndex >= 0 &&
+        existingByNameIndex >= 0 &&
+        existingByIpIndex != existingByNameIndex;
+    if (hasBothDifferent) {
+      // Remove the duplicate by name, keep by IP
+      devices.removeAt(existingByNameIndex);
+      // Recalculate IP index after removal
+      final newIpIndex = devices.indexWhere((d) => d.ip == device.ip);
+      if (newIpIndex >= 0) {
+        // Verify port before updating (async, update only if reachable)
+        _verifyAndUpdateDevice(devices, newIpIndex, device);
+        return;
+      } else {
+        // New device - verify before adding
+        _verifyAndAddDevice(device);
+        return;
+      }
+    } else if (existingByIpIndex >= 0) {
+      // Update existing device with same IP
+      final oldDevice = devices[existingByIpIndex];
+      if (oldDevice.port != device.port) {
+        developer.log(
+          'Device port changed: ${device.alias} ${oldDevice.port} -> ${device.port}, verifying...',
+          name: 'DiscoveryController',
+        );
+        // Port changed - verify new port before updating
+        _verifyAndUpdateDevice(devices, existingByIpIndex, device);
+        return;
+      }
+      // Same port, just update lastSeen
+      devices[existingByIpIndex] = device;
+    } else if (existingByNameIndex >= 0) {
+      // Update existing device with same service name
+      devices[existingByNameIndex] = device;
+    } else {
+      // New device - verify before adding
+      _verifyAndAddDevice(device);
+      return;
+    }
+
+    state = AsyncData(currentState.copyWith(devices: devices));
+  }
+
+  /// Verifies device port is reachable, then adds to list.
+  Future<void> _verifyAndAddDevice(Device device) async {
+    final reachable = await _isPortReachable(device.ip, device.port);
+    if (!reachable) {
+      developer.log(
+        'New device ${device.alias} at ${device.ip}:${device.port} not reachable, skipping',
+        name: 'DiscoveryController',
+      );
+      return;
+    }
+
+    developer.log(
+      'New device ${device.alias} at ${device.ip}:${device.port} verified reachable',
+      name: 'DiscoveryController',
+    );
+
+    final currentState = state.valueOrNull;
+    if (currentState == null) return;
+
+    final devices = List<Device>.from(currentState.devices);
+    // Re-check if device was already added while we were verifying
+    final existingIndex = devices.indexWhere((d) => d.ip == device.ip);
     if (existingIndex >= 0) {
       devices[existingIndex] = device;
     } else {
       devices.add(device);
     }
-
     state = AsyncData(currentState.copyWith(devices: devices));
+  }
+
+  /// Verifies new port is reachable before updating device.
+  Future<void> _verifyAndUpdateDevice(
+    List<Device> currentDevices,
+    int index,
+    Device newDevice,
+  ) async {
+    final reachable = await _isPortReachable(newDevice.ip, newDevice.port);
+    if (!reachable) {
+      developer.log(
+        'Port ${newDevice.port} not reachable for ${newDevice.alias}, keeping old port',
+        name: 'DiscoveryController',
+      );
+      // Update lastSeen but keep old port
+      final currentState = state.valueOrNull;
+      if (currentState != null) {
+        final devices = List<Device>.from(currentState.devices);
+        final existingIndex = devices.indexWhere((d) => d.ip == newDevice.ip);
+        if (existingIndex >= 0) {
+          devices[existingIndex] = devices[existingIndex].copyWith(
+            lastSeen: DateTime.now(),
+          );
+          state = AsyncData(currentState.copyWith(devices: devices));
+        }
+      }
+      return;
+    }
+
+    developer.log(
+      'Port ${newDevice.port} verified reachable for ${newDevice.alias}',
+      name: 'DiscoveryController',
+    );
+
+    final currentState = state.valueOrNull;
+    if (currentState == null) return;
+
+    final devices = List<Device>.from(currentState.devices);
+    final existingIndex = devices.indexWhere((d) => d.ip == newDevice.ip);
+    if (existingIndex >= 0) {
+      devices[existingIndex] = newDevice;
+    }
+    state = AsyncData(currentState.copyWith(devices: devices));
+  }
+
+  /// Quickly checks if a port is reachable via TCP connection.
+  Future<bool> _isPortReachable(String ip, int port) async {
+    try {
+      final socket = await Socket.connect(
+        ip,
+        port,
+        timeout: const Duration(seconds: 2),
+      );
+      await socket.close();
+      return true;
+    } catch (e) {
+      developer.log(
+        'Port check failed for $ip:$port: $e',
+        name: 'DiscoveryController',
+      );
+      return false;
+    }
   }
 
   void _removeDevice(String serviceInstanceName) {
     final currentState = state.valueOrNull;
     if (currentState == null) return;
 
-    final devices = currentState.devices
-        .where((d) => d.serviceInstanceName != serviceInstanceName)
-        .toList();
+    // Find the device to get its IP for thorough cleanup
+    final deviceToRemove = currentState.devices
+        .where((d) => d.serviceInstanceName == serviceInstanceName)
+        .firstOrNull;
+
+    final devices = currentState.devices.where((d) {
+      // Remove by service name
+      if (d.serviceInstanceName == serviceInstanceName) return false;
+      // Also remove any device with same IP (duplicate entries)
+      if (deviceToRemove != null && d.ip == deviceToRemove.ip) return false;
+      return true;
+    }).toList();
 
     state = AsyncData(currentState.copyWith(devices: devices));
   }

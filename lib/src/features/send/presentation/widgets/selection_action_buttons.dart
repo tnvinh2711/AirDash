@@ -83,9 +83,7 @@ class SelectionActionButtons extends ConsumerWidget {
     );
 
     if (result != null && result.isNotEmpty) {
-      await ref
-          .read(fileSelectionControllerProvider.notifier)
-          .pasteText(result);
+      ref.read(fileSelectionControllerProvider.notifier).pasteText(result);
     }
   }
 }

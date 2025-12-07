@@ -22,6 +22,9 @@ class LocalDeviceInfo with _$LocalDeviceInfo {
 
     /// Port for file transfer service.
     required int port,
+
+    /// IPv4 addresses of this device (for direct connection).
+    @Default([]) List<String> ipAddresses,
   }) = _LocalDeviceInfo;
 
   const LocalDeviceInfo._();
@@ -33,6 +36,8 @@ class LocalDeviceInfo with _$LocalDeviceInfo {
       'deviceType': deviceType.name,
       'os': os,
       'version': '1',
+      // Include IP addresses for direct connection (comma-separated)
+      if (ipAddresses.isNotEmpty) 'ips': ipAddresses.join(','),
     };
   }
 }

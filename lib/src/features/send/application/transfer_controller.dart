@@ -27,7 +27,9 @@ part 'transfer_controller.g.dart';
 ///
 /// Handles the complete transfer flow: prepare → handshake → upload → record.
 /// Supports cancellation and tracks progress for UI updates.
-@riverpod
+///
+/// Keep alive to prevent transfer from being cancelled when provider is not watched.
+@Riverpod(keepAlive: true)
 class TransferController extends _$TransferController {
   CancelToken? _cancelToken;
   final _uuid = const Uuid();

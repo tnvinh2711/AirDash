@@ -1,3 +1,4 @@
+import 'package:flux/src/features/receive/domain/isolate_event.dart';
 import 'package:flux/src/features/receive/domain/transfer_progress.dart';
 import 'package:flux/src/features/receive/domain/transfer_session.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -49,6 +50,9 @@ class ServerState with _$ServerState {
     /// Whether discovery broadcast is active.
     @Default(false) bool isBroadcasting,
 
+    /// Pending incoming request awaiting user decision.
+    IncomingRequestEvent? pendingRequest,
+
     /// Current active transfer session (null if idle).
     TransferSession? activeSession,
 
@@ -68,10 +72,13 @@ class ServerState with _$ServerState {
   factory ServerState.stopped() => const ServerState();
 
   /// Whether the server is idle (running but no active transfer).
-  bool get isIdle => isRunning && activeSession == null;
+  bool get isIdle => isRunning && activeSession == null && pendingRequest == null;
 
   /// Whether the server is in a transitional state (starting or stopping).
   bool get isTransitioning => isStarting || isStopping;
+
+  /// Whether there is a pending request awaiting user decision.
+  bool get hasPendingRequest => pendingRequest != null;
 
   /// Whether a transfer is currently in progress.
   bool get isReceiving => activeSession != null && transferProgress != null;

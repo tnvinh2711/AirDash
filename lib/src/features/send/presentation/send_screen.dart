@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
+import 'package:flux/src/features/receive/application/device_identity_provider.dart';
 import 'package:flux/src/features/send/application/file_selection_controller.dart';
 import 'package:flux/src/features/send/application/transfer_controller.dart';
 import 'package:flux/src/features/send/presentation/widgets/device_grid.dart';
@@ -39,7 +40,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Future<void> _startDiscovery() async {
     if (_hasStartedDiscovery) return;
     _hasStartedDiscovery = true;
-    await ref.read(discoveryControllerProvider.notifier).startScan();
+
+    // Get own IP address for self-filtering
+    final ownIp = await ref.read(localIpAddressProvider.future);
+    final controller = ref.read(discoveryControllerProvider.notifier)
+      ..setOwnIpAddress(ownIp);
+    await controller.startScan();
   }
 
   @override
@@ -154,7 +160,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     if (successCount == results.length) {
-      await ref.read(fileSelectionControllerProvider.notifier).clear();
+      ref.read(fileSelectionControllerProvider.notifier).clear();
 
       messenger.showSnackBar(
         SnackBar(
@@ -174,6 +180,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       );
     } else {
       final errorMsg = results.firstOrNull?.error ?? 'Unknown error';
+      print('_SendScreenState._onDeviceTap $errorMsg');
       messenger.showSnackBar(
         SnackBar(
           content: Text('Transfer failed: $errorMsg'),

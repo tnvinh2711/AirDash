@@ -11,7 +11,10 @@ class ReceiveSettings with _$ReceiveSettings {
   /// Creates a [ReceiveSettings] instance.
   const factory ReceiveSettings({
     /// Whether Quick Save is enabled (auto-accept transfers).
-    @Default(false) bool quickSaveEnabled,
+    ///
+    /// Default is `true` because accept/reject UI is not yet implemented.
+    /// TODO(receive-ui): Change default to false when accept/reject dialog is ready.
+    @Default(true) bool quickSaveEnabled,
   }) = _ReceiveSettings;
 
   /// Default settings for fresh install.

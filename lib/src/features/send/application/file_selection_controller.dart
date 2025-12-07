@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flux/src/features/send/data/file_picker_service.dart';
 import 'package:flux/src/features/send/domain/selected_item.dart';
 import 'package:flux/src/features/send/domain/selected_item_type.dart';
-import 'package:flux/src/features/settings/application/settings_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
@@ -19,41 +18,14 @@ const _sizeWarningThreshold = 1024 * 1024 * 1024;
 /// Controller for managing the file selection queue.
 ///
 /// Provides methods to add files via picker, paste text, and manage
-/// the selection list (remove, clear). Persists selection across sessions.
+/// the selection list (remove, clear). Selection is session-only and
+/// clears on app restart.
 @riverpod
 class FileSelectionController extends _$FileSelectionController {
   @override
   List<SelectedItem> build() {
-    // Load persisted selection on startup
-    _loadPersistedSelection();
+    // Session-only: start with empty list, no persistence
     return [];
-  }
-
-  /// Loads persisted selection from settings repository.
-  Future<void> _loadPersistedSelection() async {
-    final repository = ref.read(settingsRepositoryProvider);
-    final jsonString = await repository.getSelectionQueue();
-
-    if (jsonString == null || jsonString.isEmpty || jsonString == '[]') {
-      return;
-    }
-
-    try {
-      final jsonList = jsonDecode(jsonString) as List<dynamic>;
-      final items = jsonList
-          .map((e) => SelectedItem.fromJson(e as Map<String, dynamic>))
-          .toList();
-      state = items;
-    } catch (_) {
-      // Ignore parse errors, start with empty list
-    }
-  }
-
-  /// Persists the current selection to settings repository.
-  Future<void> _persistSelection() async {
-    final repository = ref.read(settingsRepositoryProvider);
-    final jsonString = jsonEncode(state.map((e) => e.toJson()).toList());
-    await repository.setSelectionQueue(jsonString);
   }
 
   /// Checks if a path is already in the selection queue.
@@ -78,7 +50,6 @@ class FileSelectionController extends _$FileSelectionController {
 
     if (uniqueItems.isNotEmpty) {
       state = [...state, ...uniqueItems];
-      await _persistSelection();
     }
 
     return uniqueItems.length;
@@ -94,7 +65,6 @@ class FileSelectionController extends _$FileSelectionController {
 
     if (item != null && !_isDuplicate(item.path)) {
       state = [...state, item];
-      await _persistSelection();
       return true;
     }
 
@@ -112,7 +82,6 @@ class FileSelectionController extends _$FileSelectionController {
 
     if (uniqueItems.isNotEmpty) {
       state = [...state, ...uniqueItems];
-      await _persistSelection();
     }
 
     return uniqueItems.length;
@@ -166,7 +135,6 @@ class FileSelectionController extends _$FileSelectionController {
 
     if (items.isNotEmpty) {
       state = [...state, ...items];
-      await _persistSelection();
     }
 
     return items.length;
@@ -188,7 +156,7 @@ class FileSelectionController extends _$FileSelectionController {
   /// Adds text content to the selection queue.
   ///
   /// Creates a text item with a generated filename based on timestamp.
-  Future<void> pasteText(String text) async {
+  void pasteText(String text) {
     final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
     final displayName = 'Pasted Text - $timestamp.txt';
     final sizeEstimate = utf8.encode(text).length;
@@ -202,19 +170,16 @@ class FileSelectionController extends _$FileSelectionController {
     );
 
     state = [...state, item];
-    await _persistSelection();
   }
 
   /// Removes an item from the selection queue by its ID.
-  Future<void> removeItem(String id) async {
+  void removeItem(String id) {
     state = state.where((item) => item.id != id).toList();
-    await _persistSelection();
   }
 
   /// Clears all items from the selection queue.
-  Future<void> clear() async {
+  void clear() {
     state = [];
-    await _persistSelection();
   }
 
   /// Returns true if the selection queue is empty.
@@ -265,7 +230,6 @@ class FileSelectionController extends _$FileSelectionController {
 
     final missingIds = missingItems.map((e) => e.id).toSet();
     state = state.where((item) => !missingIds.contains(item.id)).toList();
-    await _persistSelection();
 
     return missingItems.length;
   }

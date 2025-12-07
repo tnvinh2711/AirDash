@@ -12,5 +12,9 @@
 	<true/>
 	<key>com.apple.security.files.downloads.read-write</key>
 	<true/>
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>com.apple.dnssd.service</string>
+	</array>
 </dict>
 </plist>

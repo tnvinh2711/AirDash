@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/features/receive/application/receive_settings_provider.dart';
 import 'package:flux/src/features/receive/application/server_controller.dart';
 
 /// A card displaying the current server status (read-only).
@@ -20,18 +21,36 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final serverStateAsync = ref.watch(serverControllerProvider);
+    final receiveSettingsAsync = ref.watch(receiveSettingsNotifierProvider);
 
     final serverState = serverStateAsync.valueOrNull;
+    final receiveSettings = receiveSettingsAsync.valueOrNull;
     final isServerRunning = serverState?.isRunning ?? false;
     final isBroadcasting = serverState?.isBroadcasting ?? false;
     final isLoading = serverStateAsync.isLoading;
 
+    // Debug: log state
+    // ignore: avoid_print
+    print('[ServerStatusCard] build: hasTriggered=$_hasTriggeredAutoStart, '
+        'serverState=$serverState, receiveSettings=$receiveSettings, '
+        'isRunning=$isServerRunning, isLoading=$isLoading');
+
     // Auto-start server on first build (after initial state is available)
-    if (!_hasTriggeredAutoStart && serverState != null && !isServerRunning && !isLoading) {
+    // Wait for both server state and receive settings to be ready
+    if (!_hasTriggeredAutoStart &&
+        serverState != null &&
+        receiveSettings != null &&
+        !isServerRunning &&
+        !isLoading) {
       _hasTriggeredAutoStart = true;
+      // ignore: avoid_print
+      print('[ServerStatusCard] Triggering auto-start with quickSave='
+          '${receiveSettings.quickSaveEnabled}');
       // Schedule after build to avoid setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(serverControllerProvider.notifier).startServer();
+        ref.read(serverControllerProvider.notifier).startServer(
+              quickSaveEnabled: receiveSettings.quickSaveEnabled,
+            );
       });
     }
 
@@ -66,6 +85,7 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
                       isServerRunning: isServerRunning,
                       isBroadcasting: isBroadcasting,
                       isLoading: isLoading,
+                      port: serverState?.port,
                     ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isServerRunning
@@ -117,15 +137,16 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
     required bool isServerRunning,
     required bool isBroadcasting,
     required bool isLoading,
+    int? port,
   }) {
     if (isLoading) {
       return 'Starting...';
     }
     if (isServerRunning && isBroadcasting) {
-      return 'Ready to receive files';
+      return 'Ready on port ${port ?? "?"}';
     }
     if (isServerRunning) {
-      return 'Server ready, broadcasting...';
+      return 'Server on port ${port ?? "?"}, broadcasting...';
     }
     return 'Starting server...';
   }
