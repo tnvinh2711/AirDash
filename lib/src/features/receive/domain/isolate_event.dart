@@ -9,17 +9,15 @@ part 'isolate_event.freezed.dart';
 @freezed
 sealed class IsolateEvent with _$IsolateEvent {
   /// Server successfully bound and listening.
-  const factory IsolateEvent.serverStarted({
-    required int port,
-  }) = ServerStartedEvent;
+  const factory IsolateEvent.serverStarted({required int port}) =
+      ServerStartedEvent;
 
   /// Server has been shut down gracefully.
   const factory IsolateEvent.serverStopped() = ServerStoppedEvent;
 
   /// Error occurred during server operation.
-  const factory IsolateEvent.serverError({
-    required String message,
-  }) = ServerErrorEvent;
+  const factory IsolateEvent.serverError({required String message}) =
+      ServerErrorEvent;
 
   /// Handshake received, awaiting user decision.
   ///
@@ -59,110 +57,142 @@ sealed class IsolateEvent with _$IsolateEvent {
     required String sessionId,
     required String savedPath,
     required bool checksumVerified,
+    // File metadata for history recording
+    required String fileName,
+    required int fileSize,
+    required int fileCount,
+    required String senderAlias,
   }) = TransferCompletedEvent;
 
   /// Transfer failed with error.
   const factory IsolateEvent.transferFailed({
     required String sessionId,
     required String reason,
+    // File metadata for history recording (optional, may be null if error before handshake)
+    String? fileName,
+    int? fileSize,
+    int? fileCount,
+    String? senderAlias,
   }) = TransferFailedEvent;
 
   const IsolateEvent._();
 
   /// Converts to isolate-safe Map for transmission via SendPort.
   Map<String, dynamic> toMap() => switch (this) {
-        ServerStartedEvent(:final port) => {
-            'type': 'serverStarted',
-            'port': port,
-          },
-        ServerStoppedEvent() => {'type': 'serverStopped'},
-        ServerErrorEvent(:final message) => {
-            'type': 'serverError',
-            'message': message,
-          },
-        IncomingRequestEvent(
-          :final requestId,
-          :final senderDeviceId,
-          :final senderAlias,
-          :final fileName,
-          :final fileSize,
-          :final fileCount,
-          :final isFolder,
-        ) =>
-          {
-            'type': 'incomingRequest',
-            'requestId': requestId,
-            'senderDeviceId': senderDeviceId,
-            'senderAlias': senderAlias,
-            'fileName': fileName,
-            'fileSize': fileSize,
-            'fileCount': fileCount,
-            'isFolder': isFolder,
-          },
-        TransferProgressEvent(
-          :final sessionId,
-          :final bytesReceived,
-          :final totalBytes,
-        ) =>
-          {
-            'type': 'transferProgress',
-            'sessionId': sessionId,
-            'bytesReceived': bytesReceived,
-            'totalBytes': totalBytes,
-          },
-        TransferCompletedEvent(
-          :final sessionId,
-          :final savedPath,
-          :final checksumVerified,
-        ) =>
-          {
-            'type': 'transferCompleted',
-            'sessionId': sessionId,
-            'savedPath': savedPath,
-            'checksumVerified': checksumVerified,
-          },
-        TransferFailedEvent(:final sessionId, :final reason) => {
-            'type': 'transferFailed',
-            'sessionId': sessionId,
-            'reason': reason,
-          },
-      };
+    ServerStartedEvent(:final port) => {'type': 'serverStarted', 'port': port},
+    ServerStoppedEvent() => {'type': 'serverStopped'},
+    ServerErrorEvent(:final message) => {
+      'type': 'serverError',
+      'message': message,
+    },
+    IncomingRequestEvent(
+      :final requestId,
+      :final senderDeviceId,
+      :final senderAlias,
+      :final fileName,
+      :final fileSize,
+      :final fileCount,
+      :final isFolder,
+    ) =>
+      {
+        'type': 'incomingRequest',
+        'requestId': requestId,
+        'senderDeviceId': senderDeviceId,
+        'senderAlias': senderAlias,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'fileCount': fileCount,
+        'isFolder': isFolder,
+      },
+    TransferProgressEvent(
+      :final sessionId,
+      :final bytesReceived,
+      :final totalBytes,
+    ) =>
+      {
+        'type': 'transferProgress',
+        'sessionId': sessionId,
+        'bytesReceived': bytesReceived,
+        'totalBytes': totalBytes,
+      },
+    TransferCompletedEvent(
+      :final sessionId,
+      :final savedPath,
+      :final checksumVerified,
+      :final fileName,
+      :final fileSize,
+      :final fileCount,
+      :final senderAlias,
+    ) =>
+      {
+        'type': 'transferCompleted',
+        'sessionId': sessionId,
+        'savedPath': savedPath,
+        'checksumVerified': checksumVerified,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'fileCount': fileCount,
+        'senderAlias': senderAlias,
+      },
+    TransferFailedEvent(
+      :final sessionId,
+      :final reason,
+      :final fileName,
+      :final fileSize,
+      :final fileCount,
+      :final senderAlias,
+    ) =>
+      {
+        'type': 'transferFailed',
+        'sessionId': sessionId,
+        'reason': reason,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'fileCount': fileCount,
+        'senderAlias': senderAlias,
+      },
+  };
 
   /// Creates from isolate-received Map.
   static IsolateEvent fromMap(Map<String, dynamic> map) {
     return switch (map['type'] as String) {
-      'serverStarted' => IsolateEvent.serverStarted(
-          port: map['port'] as int,
-        ),
+      'serverStarted' => IsolateEvent.serverStarted(port: map['port'] as int),
       'serverStopped' => const IsolateEvent.serverStopped(),
       'serverError' => IsolateEvent.serverError(
-          message: map['message'] as String,
-        ),
+        message: map['message'] as String,
+      ),
       'incomingRequest' => IsolateEvent.incomingRequest(
-          requestId: map['requestId'] as String,
-          senderDeviceId: map['senderDeviceId'] as String,
-          senderAlias: map['senderAlias'] as String,
-          fileName: map['fileName'] as String,
-          fileSize: map['fileSize'] as int,
-          fileCount: map['fileCount'] as int,
-          isFolder: map['isFolder'] as bool,
-        ),
+        requestId: map['requestId'] as String,
+        senderDeviceId: map['senderDeviceId'] as String,
+        senderAlias: map['senderAlias'] as String,
+        fileName: map['fileName'] as String,
+        fileSize: map['fileSize'] as int,
+        fileCount: map['fileCount'] as int,
+        isFolder: map['isFolder'] as bool,
+      ),
       'transferProgress' => IsolateEvent.transferProgress(
-          sessionId: map['sessionId'] as String,
-          bytesReceived: map['bytesReceived'] as int,
-          totalBytes: map['totalBytes'] as int,
-        ),
+        sessionId: map['sessionId'] as String,
+        bytesReceived: map['bytesReceived'] as int,
+        totalBytes: map['totalBytes'] as int,
+      ),
       'transferCompleted' => IsolateEvent.transferCompleted(
-          sessionId: map['sessionId'] as String,
-          savedPath: map['savedPath'] as String,
-          checksumVerified: map['checksumVerified'] as bool,
-        ),
+        sessionId: map['sessionId'] as String,
+        savedPath: map['savedPath'] as String,
+        checksumVerified: map['checksumVerified'] as bool,
+        fileName: map['fileName'] as String,
+        fileSize: map['fileSize'] as int,
+        fileCount: map['fileCount'] as int,
+        senderAlias: map['senderAlias'] as String,
+      ),
       'transferFailed' => IsolateEvent.transferFailed(
-          sessionId: map['sessionId'] as String,
-          reason: map['reason'] as String,
-        ),
+        sessionId: map['sessionId'] as String,
+        reason: map['reason'] as String,
+        fileName: map['fileName'] as String?,
+        fileSize: map['fileSize'] as int?,
+        fileCount: map['fileCount'] as int?,
+        senderAlias: map['senderAlias'] as String?,
+      ),
       _ => throw ArgumentError('Unknown event type: ${map['type']}'),
     };
   }
 }
-

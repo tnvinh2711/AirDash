@@ -19,14 +19,15 @@ typedef TransferProgressCallback = void Function(int sent, int total);
 class TransferClientService {
   /// Creates a [TransferClientService] with an optional [Dio] instance.
   TransferClientService({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 30),
-                sendTimeout: const Duration(minutes: 5),
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 30),
+              sendTimeout: const Duration(minutes: 5),
+            ),
+          );
 
   final Dio _dio;
 
@@ -95,6 +96,7 @@ class TransferClientService {
     required int port,
     required String sessionId,
     required String filePath,
+    required String fileName,
     required int fileSize,
     TransferProgressCallback? onProgress,
     CancelToken? cancelToken,
@@ -109,6 +111,7 @@ class TransferClientService {
         headers: {
           'Content-Type': 'application/octet-stream',
           'X-Transfer-Session': sessionId,
+          'X-File-Name': Uri.encodeComponent(fileName),
           'Content-Length': fileSize.toString(),
         },
       ),

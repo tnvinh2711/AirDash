@@ -23,8 +23,8 @@ class DeviceIdentity with _$DeviceIdentity {
     /// Local IP address (null if not connected).
     String? ipAddress,
 
-    /// Server port number.
-    required int port,
+    /// Server port number (null if server not running).
+    int? port,
   }) = _DeviceIdentity;
 }
 

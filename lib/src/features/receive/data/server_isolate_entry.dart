@@ -57,6 +57,21 @@ void serverIsolateEntry(SendPort mainSendPort) {
   });
 }
 
+/// Metadata for an active session (stored after handshake for use in upload).
+class _SessionMetadata {
+  _SessionMetadata({
+    required this.fileName,
+    required this.fileSize,
+    required this.fileCount,
+    required this.senderAlias,
+  });
+
+  final String fileName;
+  final int fileSize;
+  final int fileCount;
+  final String senderAlias;
+}
+
 /// Internal server implementation running in the isolate.
 class _IsolateServer {
   _IsolateServer(this._sendPort);
@@ -69,6 +84,9 @@ class _IsolateServer {
 
   // Pending handshake completers keyed by requestId
   final _pendingHandshakes = <String, Completer<bool>>{};
+
+  // Active session metadata keyed by sessionId
+  final _activeSessions = <String, _SessionMetadata>{};
 
   // Progress throttling
   DateTime? _lastProgressTime;
@@ -95,9 +113,11 @@ class _IsolateServer {
 
     _config = config;
     // ignore: avoid_print
-    print('[ServerIsolate] Config set: port=${config.port}, '
-        'quickSaveEnabled=${config.quickSaveEnabled}, '
-        'destinationPath=${config.destinationPath}');
+    print(
+      '[ServerIsolate] Config set: port=${config.port}, '
+      'quickSaveEnabled=${config.quickSaveEnabled}, '
+      'destinationPath=${config.destinationPath}',
+    );
 
     try {
       developer.log(
@@ -107,10 +127,7 @@ class _IsolateServer {
       // ignore: avoid_print
       print('[ServerIsolate] Binding HTTP server on port ${config.port}');
 
-      _httpServer = await HttpServer.bind(
-        InternetAddress.anyIPv4,
-        config.port,
-      );
+      _httpServer = await HttpServer.bind(InternetAddress.anyIPv4, config.port);
 
       developer.log(
         'Server bound on port ${_httpServer!.port}',
@@ -185,10 +202,7 @@ class _IsolateServer {
       print('[ServerIsolate] Handshake body: $body');
       final json = jsonDecode(body) as Map<String, dynamic>;
 
-      developer.log(
-        'Handshake request received: $json',
-        name: 'ServerIsolate',
-      );
+      developer.log('Handshake request received: $json', name: 'ServerIsolate');
       // ignore: avoid_print
       print('[ServerIsolate] Handshake request received: $json');
 
@@ -196,13 +210,29 @@ class _IsolateServer {
       // Note: Client sends senderDeviceId/senderAlias (from HandshakeRequest DTO)
       final requestId = _uuid.v4();
       final senderDeviceId =
-          json['senderDeviceId'] as String? ?? json['deviceId'] as String? ?? 'unknown';
+          json['senderDeviceId'] as String? ??
+          json['deviceId'] as String? ??
+          'unknown';
       final senderAlias =
-          json['senderAlias'] as String? ?? json['alias'] as String? ?? 'Unknown Device';
+          json['senderAlias'] as String? ??
+          json['alias'] as String? ??
+          'Unknown Device';
       final fileName = json['fileName'] as String? ?? 'file';
       final fileSize = json['fileSize'] as int? ?? 0;
       final fileCount = json['fileCount'] as int? ?? 1;
       final isFolder = json['isFolder'] as bool? ?? false;
+
+      // Helper to store session metadata after accept
+      void storeSessionMetadata(String sessionId) {
+        _activeSessions[sessionId] = _SessionMetadata(
+          fileName: fileName,
+          fileSize: fileSize,
+          fileCount: fileCount,
+          senderAlias: senderAlias,
+        );
+        // ignore: avoid_print
+        print('[ServerIsolate] Stored session metadata for $sessionId');
+      }
 
       // Quick Save mode: auto-accept without prompting
       // ignore: avoid_print
@@ -213,6 +243,7 @@ class _IsolateServer {
         // ignore: avoid_print
         print('[ServerIsolate] Quick Save is ON, auto-accepting');
         final sessionId = _uuid.v4();
+        storeSessionMetadata(sessionId);
         return Response.ok(
           jsonEncode({'accepted': true, 'sessionId': sessionId}),
           headers: {'Content-Type': 'application/json'},
@@ -222,15 +253,17 @@ class _IsolateServer {
       print('[ServerIsolate] Quick Save is OFF, waiting for user decision');
 
       // Notify main isolate of incoming request
-      _sendEvent(IsolateEvent.incomingRequest(
-        requestId: requestId,
-        senderDeviceId: senderDeviceId,
-        senderAlias: senderAlias,
-        fileName: fileName,
-        fileSize: fileSize,
-        fileCount: fileCount,
-        isFolder: isFolder,
-      ));
+      _sendEvent(
+        IsolateEvent.incomingRequest(
+          requestId: requestId,
+          senderDeviceId: senderDeviceId,
+          senderAlias: senderAlias,
+          fileName: fileName,
+          fileSize: fileSize,
+          fileCount: fileCount,
+          isFolder: isFolder,
+        ),
+      );
 
       // Wait for user decision with timeout
       final completer = Completer<bool>();
@@ -245,6 +278,7 @@ class _IsolateServer {
 
         if (accepted) {
           final sessionId = _uuid.v4();
+          storeSessionMetadata(sessionId);
           return Response.ok(
             jsonEncode({'accepted': true, 'sessionId': sessionId}),
             headers: {'Content-Type': 'application/json'},
@@ -285,15 +319,18 @@ class _IsolateServer {
     }
 
     final destinationPath = _config?.destinationPath ?? '/tmp';
-    final fileName = request.headers['x-file-name'] ?? 'received_file';
+    // Decode URL-encoded filename from header
+    final rawFileName = request.headers['x-file-name'] ?? 'received_file';
+    final fileName = Uri.decodeComponent(rawFileName);
     final filePath = '$destinationPath/$fileName';
     IOSink? sink;
 
     try {
       // Get total bytes from header
       final contentLength = request.headers['content-length'];
-      final totalBytes =
-          contentLength != null ? int.tryParse(contentLength) ?? 0 : 0;
+      final totalBytes = contentLength != null
+          ? int.tryParse(contentLength) ?? 0
+          : 0;
 
       // Stream file to disk with progress updates
       var bytesReceived = 0;
@@ -310,11 +347,13 @@ class _IsolateServer {
             now.difference(_lastProgressTime!).inMilliseconds >=
                 _progressThrottleMs) {
           _lastProgressTime = now;
-          _sendEvent(IsolateEvent.transferProgress(
-            sessionId: sessionId,
-            bytesReceived: bytesReceived,
-            totalBytes: totalBytes,
-          ));
+          _sendEvent(
+            IsolateEvent.transferProgress(
+              sessionId: sessionId,
+              bytesReceived: bytesReceived,
+              totalBytes: totalBytes,
+            ),
+          );
         }
       }
 
@@ -322,17 +361,29 @@ class _IsolateServer {
       sink = null;
 
       // Always emit final 100% progress before completion
-      _sendEvent(IsolateEvent.transferProgress(
-        sessionId: sessionId,
-        bytesReceived: bytesReceived,
-        totalBytes: totalBytes,
-      ));
+      _sendEvent(
+        IsolateEvent.transferProgress(
+          sessionId: sessionId,
+          bytesReceived: bytesReceived,
+          totalBytes: totalBytes,
+        ),
+      );
 
-      _sendEvent(IsolateEvent.transferCompleted(
-        sessionId: sessionId,
-        savedPath: filePath,
-        checksumVerified: true, // TODO: Implement checksum verification
-      ));
+      // Get session metadata for history recording
+      final metadata = _activeSessions[sessionId];
+      _activeSessions.remove(sessionId);
+
+      _sendEvent(
+        IsolateEvent.transferCompleted(
+          sessionId: sessionId,
+          savedPath: filePath,
+          checksumVerified: true, // TODO: Implement checksum verification
+          fileName: metadata?.fileName ?? fileName,
+          fileSize: metadata?.fileSize ?? totalBytes,
+          fileCount: metadata?.fileCount ?? 1,
+          senderAlias: metadata?.senderAlias ?? 'Unknown',
+        ),
+      );
 
       return Response.ok(
         jsonEncode({
@@ -343,6 +394,10 @@ class _IsolateServer {
         headers: {'Content-Type': 'application/json'},
       );
     } catch (e) {
+      // Get session metadata for history recording
+      final metadata = _activeSessions[sessionId];
+      _activeSessions.remove(sessionId);
+
       // Clean up partial file on failure
       try {
         await sink?.close();
@@ -362,10 +417,16 @@ class _IsolateServer {
         );
       }
 
-      _sendEvent(IsolateEvent.transferFailed(
-        sessionId: sessionId,
-        reason: e.toString(),
-      ));
+      _sendEvent(
+        IsolateEvent.transferFailed(
+          sessionId: sessionId,
+          reason: e.toString(),
+          fileName: metadata?.fileName,
+          fileSize: metadata?.fileSize,
+          fileCount: metadata?.fileCount,
+          senderAlias: metadata?.senderAlias,
+        ),
+      );
 
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'error': e.toString()}),
@@ -374,4 +435,3 @@ class _IsolateServer {
     }
   }
 }
-

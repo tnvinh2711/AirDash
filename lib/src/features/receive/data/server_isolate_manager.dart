@@ -10,6 +10,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'server_isolate_manager.g.dart';
 
+/// Handshake timeout duration - increased from 10s to 30s for reliability.
+const _handshakeTimeout = Duration(seconds: 30);
+
+/// Maximum number of handshake retry attempts.
+const _maxHandshakeRetries = 3;
+
 /// Manages the server isolate lifecycle and bidirectional communication.
 ///
 /// Spawns a background isolate to run the HTTP server, avoiding UI freezes
@@ -28,6 +34,9 @@ class ServerIsolateManager {
   StreamSubscription<dynamic>? _exitSubscription;
   final _eventController = StreamController<IsolateEvent>.broadcast();
 
+  /// Flag to prevent adding events after disposal.
+  bool _disposed = false;
+
   /// Stream of events from the server isolate.
   Stream<IsolateEvent> get events => _eventController.stream;
 
@@ -37,7 +46,8 @@ class ServerIsolateManager {
   /// Starts the server isolate with the given configuration.
   ///
   /// Spawns a new isolate, establishes bidirectional communication,
-  /// and sends the StartServer command.
+  /// and sends the StartServer command. Retries up to [_maxHandshakeRetries]
+  /// times on handshake timeout.
   Future<void> start(IsolateConfig config) async {
     if (_isolate != null) {
       developer.log(
@@ -47,8 +57,36 @@ class ServerIsolateManager {
       return;
     }
 
+    // Reset disposed flag when starting
+    _disposed = false;
+
+    Exception? lastError;
+    for (var attempt = 1; attempt <= _maxHandshakeRetries; attempt++) {
+      try {
+        await _startInternal(config, attempt);
+        return; // Success
+      } on Exception catch (e) {
+        lastError = e;
+        developer.log(
+          'Start attempt $attempt/$_maxHandshakeRetries failed: $e',
+          name: 'ServerIsolateManager',
+          error: e,
+        );
+        if (attempt < _maxHandshakeRetries) {
+          // Wait before retry
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
+    }
+
+    // All retries exhausted
+    throw lastError ?? Exception('Failed to start server isolate');
+  }
+
+  /// Internal start implementation for retry logic.
+  Future<void> _startInternal(IsolateConfig config, int attempt) async {
     developer.log(
-      'Starting server isolate on port ${config.port}',
+      'Starting server isolate on port ${config.port} (attempt $attempt)',
       name: 'ServerIsolateManager',
     );
 
@@ -66,7 +104,7 @@ class ServerIsolateManager {
         name: 'ServerIsolateManager',
         error: message,
       );
-      _eventController.add(
+      _safeAddEvent(
         IsolateEvent.serverError(message: 'Isolate error: $message'),
       );
     });
@@ -79,12 +117,12 @@ class ServerIsolateManager {
       );
       if (_isolate != null) {
         // Unexpected exit - emit error event
-        _eventController.add(
+        _safeAddEvent(
           const IsolateEvent.serverError(
             message: 'Server isolate crashed unexpectedly',
           ),
         );
-        _eventController.add(const IsolateEvent.serverStopped());
+        _safeAddEvent(const IsolateEvent.serverStopped());
         _cleanupWithoutKill();
       }
     });
@@ -118,7 +156,7 @@ class ServerIsolateManager {
         print('[ServerIsolateManager] Received event map: $message');
         try {
           final event = IsolateEvent.fromMap(message);
-          _eventController.add(event);
+          _safeAddEvent(event);
         } catch (e) {
           developer.log(
             'Failed to parse event: $e',
@@ -131,22 +169,24 @@ class ServerIsolateManager {
       }
     });
 
-    // Wait for handshake (SendPort from isolate)
+    // Wait for handshake (SendPort from isolate) with retry logic
     // ignore: avoid_print
     print('[ServerIsolateManager] Waiting for SendPort handshake...');
     try {
-      await completer.future.timeout(const Duration(seconds: 10));
+      await completer.future.timeout(_handshakeTimeout);
       // ignore: avoid_print
       print('[ServerIsolateManager] Handshake complete');
     } on TimeoutException {
       developer.log(
-        'Handshake timeout - isolate did not respond',
+        'Handshake timeout after ${_handshakeTimeout.inSeconds}s - isolate did not respond',
         name: 'ServerIsolateManager',
       );
       // ignore: avoid_print
-      print('[ServerIsolateManager] Handshake TIMEOUT!');
+      print('[ServerIsolateManager] Handshake TIMEOUT after ${_handshakeTimeout.inSeconds}s!');
       await _cleanup();
-      throw Exception('Server isolate handshake timeout');
+      throw Exception(
+        'Server isolate handshake timeout after ${_handshakeTimeout.inSeconds}s',
+      );
     }
 
     // Send start command
@@ -181,8 +221,22 @@ class ServerIsolateManager {
 
   /// Disposes all resources.
   Future<void> dispose() async {
+    // Set disposed flag first to prevent any new events
+    _disposed = true;
     await stop();
     await _eventController.close();
+  }
+
+  /// Safely adds an event to the stream, guarding against disposed state.
+  void _safeAddEvent(IsolateEvent event) {
+    if (_disposed || _eventController.isClosed) {
+      developer.log(
+        'Ignoring event after disposal: ${event.runtimeType}',
+        name: 'ServerIsolateManager',
+      );
+      return;
+    }
+    _eventController.add(event);
   }
 
   void _sendCommand(IsolateCommand command) {
@@ -197,6 +251,8 @@ class ServerIsolateManager {
   }
 
   Future<void> _cleanup() async {
+    // Set disposed flag to prevent race conditions during cleanup
+    _disposed = true;
     await _cleanupWithoutKill();
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
@@ -205,6 +261,8 @@ class ServerIsolateManager {
   /// Cleans up resources without killing the isolate.
   /// Used when isolate has already exited unexpectedly.
   Future<void> _cleanupWithoutKill() async {
+    // Set disposed flag first
+    _disposed = true;
     await _subscription?.cancel();
     _subscription = null;
     await _errorSubscription?.cancel();
@@ -223,7 +281,12 @@ class ServerIsolateManager {
 }
 
 /// Provides the [ServerIsolateManager] instance.
-@riverpod
+///
+/// Uses [keepAlive: true] to prevent the manager from being disposed
+/// when no widgets are watching it. This is critical because the server
+/// isolate should persist as long as the app is running, not just when
+/// the ReceiveScreen is visible.
+@Riverpod(keepAlive: true)
 ServerIsolateManager serverIsolateManager(ServerIsolateManagerRef ref) {
   final manager = ServerIsolateManager();
   ref.onDispose(() => manager.dispose());

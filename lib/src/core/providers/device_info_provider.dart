@@ -10,7 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'device_info_provider.g.dart';
 
 /// Default port for the file transfer service.
-const int kDefaultPort = 8080;
+const int kDefaultPort = 53318;
 
 /// Generates a unique device name using faker.
 /// Uses a seed based on device-specific info for consistency.

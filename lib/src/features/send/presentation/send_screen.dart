@@ -2,11 +2,14 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/core/widgets/toast_helper.dart';
+import 'package:flux/src/core/widgets/transfer_status_bar.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
 import 'package:flux/src/features/receive/application/device_identity_provider.dart';
 import 'package:flux/src/features/send/application/file_selection_controller.dart';
 import 'package:flux/src/features/send/application/transfer_controller.dart';
+import 'package:flux/src/features/send/domain/transfer_state.dart';
 import 'package:flux/src/features/send/presentation/widgets/device_grid.dart';
 import 'package:flux/src/features/send/presentation/widgets/drop_zone_overlay.dart';
 import 'package:flux/src/features/send/presentation/widgets/selection_action_buttons.dart';
@@ -53,8 +56,15 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final selection = ref.watch(fileSelectionControllerProvider);
     final isSelectionEmpty = selection.isEmpty;
 
+    // Listen for transfer completion/failure
+    ref.listen<TransferState>(
+      transferControllerProvider,
+      _handleTransferStateChange,
+    );
+
     // Check if we're on desktop for drag-drop support
-    final isDesktop = !kIsWeb &&
+    final isDesktop =
+        !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.windows ||
             defaultTargetPlatform == TargetPlatform.linux);
@@ -68,18 +78,50 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         onDragExited: (_) => setState(() => _isDragging = false),
         onDragDone: _handleDrop,
         child: Stack(
-          children: [
-            body,
-            if (_isDragging) const DropZoneOverlay(),
-          ],
+          children: [body, if (_isDragging) const DropZoneOverlay()],
         ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Send'), centerTitle: true),
-      body: body,
+      body: Stack(
+        children: [
+          body,
+          // Transfer status bar at bottom
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: TransferStatusBar(),
+          ),
+        ],
+      ),
     );
+  }
+
+  void _handleTransferStateChange(TransferState? previous, TransferState next) {
+    switch (next) {
+      case TransferStateCompleted(:final results):
+        final successCount = results.where((r) => r.success).length;
+        showSuccessToast(
+          context,
+          'Sent $successCount file${successCount == 1 ? '' : 's'} successfully',
+        );
+      case TransferStateFailed(:final error):
+        showErrorToast(context, error);
+      case TransferStatePartialSuccess(:final results):
+        final successCount = results.where((r) => r.success).length;
+        final failCount = results.length - successCount;
+        showInfoToast(
+          context,
+          'Sent $successCount, failed $failCount file${failCount == 1 ? '' : 's'}',
+        );
+      case TransferStateCancelled():
+        showInfoToast(context, 'Transfer cancelled');
+      default:
+        break;
+    }
   }
 
   Widget _buildBody(bool isSelectionEmpty) {
@@ -93,10 +135,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           const SizedBox(height: 16),
 
           // Selection list (takes available space)
-          const Expanded(
-            flex: 2,
-            child: SelectionList(),
-          ),
+          const Expanded(flex: 2, child: SelectionList()),
           const SizedBox(height: 16),
 
           // Device grid
@@ -148,45 +187,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     if (confirmed != true) return;
 
     // Start transfer
-    final results = await ref.read(transferControllerProvider.notifier).sendAll(
-          items: selection,
-          target: device,
-        );
-
-    // Clear selection on success
-    final successCount = results.where((r) => r.success).length;
-    if (!mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-
-    if (successCount == results.length) {
-      ref.read(fileSelectionControllerProvider.notifier).clear();
-
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Successfully sent ${results.length} item(s)'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } else if (successCount > 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Sent $successCount of ${results.length} item(s). '
-            'Some transfers failed.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    } else {
-      final errorMsg = results.firstOrNull?.error ?? 'Unknown error';
-      print('_SendScreenState._onDeviceTap $errorMsg');
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Transfer failed: $errorMsg'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    await ref
+        .read(transferControllerProvider.notifier)
+        .sendAll(items: selection, target: device);
   }
 }

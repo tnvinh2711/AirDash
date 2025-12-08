@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/receive/application/device_identity_provider.dart';
+import 'package:flux/src/features/receive/application/server_controller.dart';
 import 'package:flux/src/features/receive/domain/device_identity.dart';
 import 'package:flux/src/features/receive/presentation/widgets/device_avatar.dart';
 import 'package:flux/src/features/receive/presentation/widgets/pulsing_avatar.dart';
@@ -12,10 +13,7 @@ import 'package:flux/src/features/receive/presentation/widgets/pulsing_avatar.da
 /// is tappable to copy to clipboard. Shows "Not Connected" when offline.
 class IdentityCard extends ConsumerWidget {
   /// Creates an [IdentityCard] widget.
-  const IdentityCard({
-    required this.isReceiving,
-    super.key,
-  });
+  const IdentityCard({required this.isReceiving, super.key});
 
   /// Whether the device is currently in receiving mode.
   final bool isReceiving;
@@ -23,9 +21,13 @@ class IdentityCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final identityAsync = ref.watch(deviceIdentityProvider);
+    final serverState = ref.watch(serverControllerProvider);
+
+    // Get actual port from server state, fallback to identity port
+    final actualPort = serverState.valueOrNull?.port;
 
     return identityAsync.when(
-      data: (identity) => _buildCard(context, identity),
+      data: (identity) => _buildCard(context, identity, actualPort),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(
         child: Column(
@@ -40,8 +42,14 @@ class IdentityCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, DeviceIdentity identity) {
+  Widget _buildCard(
+    BuildContext context,
+    DeviceIdentity identity,
+    int? actualPort,
+  ) {
     final theme = Theme.of(context);
+    // Use actual server port if available, otherwise fallback to identity port
+    final displayPort = actualPort ?? identity.port;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -76,9 +84,9 @@ class IdentityCard extends ConsumerWidget {
         _buildIpAddressRow(context, identity.ipAddress),
         const SizedBox(height: 4),
 
-        // Port
+        // Port (shows actual server port when running)
         Text(
-          'Port: ${identity.port}',
+          'Port: $displayPort',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.outline,
           ),
@@ -134,5 +142,3 @@ class IdentityCard extends ConsumerWidget {
     }
   }
 }
-
-

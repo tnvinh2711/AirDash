@@ -262,10 +262,33 @@ class DiscoveryRepository {
       return null;
     }
 
+    // Get port from service, fallback to TXT attribute if service.port is 0
+    // (Android NSD sometimes doesn't resolve port correctly)
+    var port = service.port;
+    if (port == 0) {
+      final portStr = attributes['port'];
+      if (portStr != null) {
+        port = int.tryParse(portStr) ?? 0;
+        developer.log(
+          'Using port from TXT record: $port (service.port was 0)',
+          name: 'DiscoveryRepository',
+        );
+      }
+    }
+
+    // Skip devices with invalid port
+    if (port == 0) {
+      developer.log(
+        'Skipping device with port 0: ${service.name}',
+        name: 'DiscoveryRepository',
+      );
+      return null;
+    }
+
     return Device(
       serviceInstanceName: service.name,
       ip: ip,
-      port: service.port,
+      port: port,
       alias: attributes['alias'] ?? service.name,
       deviceType: DeviceType.fromString(attributes['deviceType'] ?? 'unknown'),
       os: attributes['os'] ?? 'unknown',
@@ -281,7 +304,10 @@ class DiscoveryRepository {
     }
 
     // Parse comma-separated IPs and return the first one
-    final ips = ipsString.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+    final ips = ipsString
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty);
     for (final ip in ips) {
       // Validate it looks like an IPv4 address
       final ipv4Regex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
@@ -295,6 +321,7 @@ class DiscoveryRepository {
     }
     return null;
   }
+
   /// Stops scanning for devices.
   Future<void> stopScan() async {
     await _discovery?.stop();

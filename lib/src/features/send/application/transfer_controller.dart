@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flux/src/core/providers/device_info_provider.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
 import 'package:flux/src/features/history/application/history_provider.dart';
@@ -459,6 +460,7 @@ class TransferController extends _$TransferController {
       port: target.port,
       sessionId: sessionId,
       filePath: payload.sourcePath,
+      fileName: payload.fileName,
       fileSize: payload.fileSize,
       onProgress: (sent, total) {
         state = TransferState.sending(
@@ -487,6 +489,10 @@ class TransferController extends _$TransferController {
     Device target,
     TransferStatus status,
   ) async {
+    debugPrint(
+      '[TransferController] Recording history: '
+      '${item.displayName} -> ${target.alias} (status: $status)',
+    );
     try {
       final repository = ref.read(historyRepositoryProvider);
       final entry = NewTransferHistoryEntry(
@@ -500,8 +506,11 @@ class TransferController extends _$TransferController {
         remoteDeviceAlias: target.alias,
       );
       await repository.addEntry(entry);
-    } catch (_) {
+      debugPrint('[TransferController] History entry saved successfully');
+    } catch (e, stack) {
       // Log error but don't fail the transfer
+      debugPrint('[TransferController] Failed to save history: $e');
+      debugPrint('[TransferController] Stack trace: $stack');
     }
   }
 

@@ -1,9 +1,16 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flux/src/core/providers/device_info_provider.dart';
+import 'package:flux/src/core/providers/permission_provider.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
 import 'package:flux/src/features/discovery/domain/local_device_info.dart';
+import 'package:flux/src/features/history/application/history_provider.dart';
+import 'package:flux/src/features/history/domain/new_transfer_history_entry.dart';
+import 'package:flux/src/features/history/domain/transfer_direction.dart';
+import 'package:flux/src/features/history/domain/transfer_status.dart';
 import 'package:flux/src/features/receive/data/file_storage_service.dart';
 import 'package:flux/src/features/receive/data/server_isolate_manager.dart';
 import 'package:flux/src/features/receive/domain/isolate_config.dart';
@@ -25,6 +32,10 @@ part 'server_controller.g.dart';
 class ServerController extends _$ServerController {
   StreamSubscription<IsolateEvent>? _eventSubscription;
 
+  /// Cache of last accepted/ongoing request for history recording.
+  /// Since only one transfer can happen at a time, we just store the last one.
+  IncomingRequestEvent? _lastAcceptedRequest;
+
   @override
   Future<ServerState> build() async {
     ref.onDispose(_cleanup);
@@ -34,6 +45,7 @@ class ServerController extends _$ServerController {
   void _cleanup() {
     _eventSubscription?.cancel();
     _eventSubscription = null;
+    _lastAcceptedRequest = null;
   }
 
   ServerIsolateManager get _isolateManager =>
@@ -57,6 +69,32 @@ class ServerController extends _$ServerController {
       return;
     }
 
+    // Check storage permission on Android before starting
+    if (Platform.isAndroid) {
+      final permissionController = ref.read(
+        permissionControllerProvider.notifier,
+      );
+      final permissionResult = await permissionController
+          .requestStoragePermission();
+
+      if (permissionResult == PermissionResult.denied ||
+          permissionResult == PermissionResult.permanentlyDenied) {
+        developer.log(
+          'Storage permission denied: $permissionResult',
+          name: 'ServerController',
+        );
+        state = AsyncData(
+          currentState.copyWith(
+            error: permissionResult == PermissionResult.permanentlyDenied
+                ? 'Storage permission permanently denied. '
+                      'Please enable in Settings.'
+                : 'Storage permission required to receive files.',
+          ),
+        );
+        return;
+      }
+    }
+
     // Set loading state immediately for responsive UI
     state = const AsyncLoading<ServerState>().copyWithPrevious(state);
     // ignore: avoid_print
@@ -64,7 +102,8 @@ class ServerController extends _$ServerController {
 
     try {
       // Get destination path from FileStorageService if not provided
-      final actualDestinationPath = destinationPath ??
+      final actualDestinationPath =
+          destinationPath ??
           await ref.read(fileStorageServiceProvider).getReceiveFolder();
       // ignore: avoid_print
       print('[ServerController] Destination path: $actualDestinationPath');
@@ -81,11 +120,13 @@ class ServerController extends _$ServerController {
       const port = 53318; // Fixed port for now
       // ignore: avoid_print
       print('[ServerController] Calling _isolateManager.start()...');
-      await _isolateManager.start(IsolateConfig(
-        port: port,
-        destinationPath: actualDestinationPath,
-        quickSaveEnabled: quickSaveEnabled,
-      ));
+      await _isolateManager.start(
+        IsolateConfig(
+          port: port,
+          destinationPath: actualDestinationPath,
+          quickSaveEnabled: quickSaveEnabled,
+        ),
+      );
       // ignore: avoid_print
       print('[ServerController] _isolateManager.start() completed');
 
@@ -96,11 +137,7 @@ class ServerController extends _$ServerController {
 
       // Update state with running server (UI can update now)
       state = AsyncData(
-        currentState.copyWith(
-          isRunning: true,
-          port: port,
-          error: null,
-        ),
+        currentState.copyWith(isRunning: true, port: port, error: null),
       );
       // ignore: avoid_print
       print('[ServerController] State updated to running');
@@ -115,9 +152,7 @@ class ServerController extends _$ServerController {
       );
       // ignore: avoid_print
       print('[ServerController] FAILED to start server: $e\n$stack');
-      state = AsyncData(
-        currentState.copyWith(error: e.toString()),
-      );
+      state = AsyncData(currentState.copyWith(error: e.toString()));
     }
   }
 
@@ -155,18 +190,14 @@ class ServerController extends _$ServerController {
       await _isolateManager.stop();
 
       // Update state
-      state = AsyncData(
-        ServerState.stopped(),
-      );
+      state = AsyncData(ServerState.stopped());
     } catch (e) {
       developer.log(
         'Failed to stop server: $e',
         name: 'ServerController',
         error: e,
       );
-      state = AsyncData(
-        currentState.copyWith(error: e.toString()),
-      );
+      state = AsyncData(currentState.copyWith(error: e.toString()));
     }
   }
 
@@ -234,14 +265,20 @@ class ServerController extends _$ServerController {
 
   /// Accepts a pending incoming request.
   void acceptRequest(String requestId) {
+    // Save pending request for history recording before clearing
+    final currentState = state.valueOrNull;
+    if (currentState?.pendingRequest != null) {
+      _lastAcceptedRequest = currentState!.pendingRequest;
+      debugPrint(
+        '[ServerController] Saved accepted request: ${_lastAcceptedRequest?.fileName}',
+      );
+    }
+
     _isolateManager.respondHandshake(requestId: requestId, accepted: true);
 
     // Clear pending request from state
-    final currentState = state.valueOrNull;
     if (currentState != null) {
-      state = AsyncData(
-        currentState.copyWith(pendingRequest: null),
-      );
+      state = AsyncData(currentState.copyWith(pendingRequest: null));
     }
   }
 
@@ -252,9 +289,7 @@ class ServerController extends _$ServerController {
     // Clear pending request from state
     final currentState = state.valueOrNull;
     if (currentState != null) {
-      state = AsyncData(
-        currentState.copyWith(pendingRequest: null),
-      );
+      state = AsyncData(currentState.copyWith(pendingRequest: null));
     }
   }
 
@@ -264,16 +299,9 @@ class ServerController extends _$ServerController {
 
     switch (event) {
       case ServerStartedEvent(:final port):
-        developer.log(
-          'Server started on port $port',
-          name: 'ServerController',
-        );
+        developer.log('Server started on port $port', name: 'ServerController');
         state = AsyncData(
-          currentState.copyWith(
-            isRunning: true,
-            port: port,
-            error: null,
-          ),
+          currentState.copyWith(isRunning: true, port: port, error: null),
         );
       case ServerStoppedEvent():
         developer.log('Server stopped', name: 'ServerController');
@@ -284,19 +312,15 @@ class ServerController extends _$ServerController {
           name: 'ServerController',
           error: message,
         );
-        state = AsyncData(
-          currentState.copyWith(error: message),
-        );
+        state = AsyncData(currentState.copyWith(error: message));
       case IncomingRequestEvent() && final request:
         // Show pending request to user
-        state = AsyncData(
-          currentState.copyWith(pendingRequest: request),
-        );
+        state = AsyncData(currentState.copyWith(pendingRequest: request));
       case TransferProgressEvent(
-          :final bytesReceived,
-          :final totalBytes,
-          sessionId: _,
-        ):
+        :final bytesReceived,
+        :final totalBytes,
+        sessionId: _,
+      ):
         final existingProgress = currentState.transferProgress;
         state = AsyncData(
           currentState.copyWith(
@@ -307,35 +331,99 @@ class ServerController extends _$ServerController {
             ),
           ),
         );
-      case TransferCompletedEvent(:final savedPath, sessionId: _):
-        final session = currentState.activeSession;
+      case TransferCompletedEvent() && final event:
         state = AsyncData(
           currentState.copyWith(
             activeSession: null,
             transferProgress: null,
-            lastCompleted: session != null
-                ? CompletedTransferInfo(
-                    fileName: session.metadata.fileName,
-                    fileSize: session.metadata.fileSize,
-                    savedPath: savedPath,
-                    completedAt: DateTime.now(),
-                  )
-                : CompletedTransferInfo(
-                    fileName: 'File',
-                    fileSize: 0,
-                    savedPath: savedPath,
-                    completedAt: DateTime.now(),
-                  ),
+            lastCompleted: CompletedTransferInfo(
+              fileName: event.fileName,
+              fileSize: event.fileSize,
+              savedPath: event.savedPath,
+              completedAt: DateTime.now(),
+            ),
           ),
         );
-      case TransferFailedEvent(:final reason, sessionId: _):
+        // Record history for received transfer using metadata from event
+        debugPrint(
+          '[ServerController] Transfer completed: ${event.fileName} '
+          'from ${event.senderAlias}',
+        );
+        _recordHistoryFromEvent(
+          sessionId: event.sessionId,
+          fileName: event.fileName,
+          fileSize: event.fileSize,
+          fileCount: event.fileCount,
+          senderAlias: event.senderAlias,
+          status: TransferStatus.completed,
+        );
+        _lastAcceptedRequest = null; // Clear any cached request
+      case TransferFailedEvent() && final event:
         state = AsyncData(
           currentState.copyWith(
             activeSession: null,
             transferProgress: null,
-            error: reason,
+            error: event.reason,
           ),
         );
+        // Record history for failed transfer if we have metadata
+        debugPrint(
+          '[ServerController] Transfer failed: ${event.fileName ?? "unknown"} '
+          'reason: ${event.reason}',
+        );
+        if (event.fileName != null) {
+          _recordHistoryFromEvent(
+            sessionId: event.sessionId,
+            fileName: event.fileName!,
+            fileSize: event.fileSize ?? 0,
+            fileCount: event.fileCount ?? 1,
+            senderAlias: event.senderAlias ?? 'Unknown',
+            status: TransferStatus.failed,
+          );
+        }
+        _lastAcceptedRequest = null; // Clear any cached request
+    }
+  }
+
+  /// Records a transfer in history from event metadata.
+  void _recordHistoryFromEvent({
+    required String sessionId,
+    required String fileName,
+    required int fileSize,
+    required int fileCount,
+    required String senderAlias,
+    required TransferStatus status,
+  }) {
+    debugPrint(
+      '[ServerController] Recording history: '
+      '$fileName from $senderAlias (status: $status)',
+    );
+    try {
+      final repository = ref.read(historyRepositoryProvider);
+      // Extract file extension from fileName
+      final lastDot = fileName.lastIndexOf('.');
+      final fileType = lastDot != -1 ? fileName.substring(lastDot + 1) : '';
+
+      final entry = NewTransferHistoryEntry(
+        transferId: sessionId,
+        fileName: fileName,
+        fileCount: fileCount,
+        totalSize: fileSize,
+        fileType: fileType,
+        status: status,
+        direction: TransferDirection.received,
+        remoteDeviceAlias: senderAlias,
+      );
+      repository
+          .addEntry(entry)
+          .then((_) {
+            debugPrint('[ServerController] History entry saved successfully');
+          })
+          .catchError((Object e) {
+            debugPrint('[ServerController] Failed to save history: $e');
+          });
+    } catch (e) {
+      debugPrint('[ServerController] Failed to record history: $e');
     }
   }
 }
