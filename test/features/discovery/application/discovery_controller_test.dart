@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
@@ -309,44 +310,62 @@ void main() {
         expect(state?.devices.first.serviceInstanceName, equals('TestDevice'));
       });
 
-      test('removes device from list on DeviceLostEvent', () async {
-        final mockRepository = MockDiscoveryRepository();
-        final eventController = StreamController<DiscoveryEvent>.broadcast();
-        final container = ProviderContainer(
-          overrides: [
-            discoveryRepositoryProvider.overrideWithValue(mockRepository),
-          ],
-        );
-        addTearDown(() {
+      test('removes device from list on DeviceLostEvent after grace period',
+          () {
+        fakeAsync((async) {
+          final mockRepository = MockDiscoveryRepository();
+          final eventController = StreamController<DiscoveryEvent>.broadcast();
+          final container = ProviderContainer(
+            overrides: [
+              discoveryRepositoryProvider.overrideWithValue(mockRepository),
+            ],
+          );
+
+          when(
+            () => mockRepository.startScan(),
+          ).thenAnswer((_) => eventController.stream);
+
+          // Keep the provider alive by listening to it
+          final subscription = container.listen(
+            discoveryControllerProvider,
+            (_, __) {},
+          );
+
+          // Wait for the provider to be ready
+          async.flushMicrotasks();
+
+          final controller =
+              container.read(discoveryControllerProvider.notifier);
+
+          controller.startScan();
+          async.flushMicrotasks();
+
+          eventController.add(DeviceFoundEvent(createTestDevice()));
+          async.flushMicrotasks();
+
+          // Device should be in the list
+          var state = container.read(discoveryControllerProvider).valueOrNull;
+          expect(state?.devices, hasLength(1));
+
+          eventController.add(DeviceLostEvent('TestDevice'));
+          async.flushMicrotasks();
+
+          // Device should still be in the list (grace period not expired)
+          state = container.read(discoveryControllerProvider).valueOrNull;
+          expect(state?.devices, hasLength(1));
+
+          // Fast-forward past the 30-second grace period
+          async.elapse(const Duration(seconds: 31));
+
+          // Now device should be removed
+          state = container.read(discoveryControllerProvider).valueOrNull;
+          expect(state?.devices, isEmpty);
+
+          // Cleanup
+          subscription.close();
           eventController.close();
           container.dispose();
         });
-
-        when(
-          () => mockRepository.startScan(),
-        ).thenAnswer((_) => eventController.stream);
-
-        // Keep the provider alive by listening to it
-        final subscription = container.listen(
-          discoveryControllerProvider,
-          (_, __) {},
-        );
-        addTearDown(subscription.close);
-
-        // Wait for the provider to be ready
-        await container.read(discoveryControllerProvider.future);
-
-        final controller = container.read(discoveryControllerProvider.notifier);
-
-        await controller.startScan();
-        eventController.add(DeviceFoundEvent(createTestDevice()));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-
-        eventController.add(DeviceLostEvent('TestDevice'));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-
-        final state = container.read(discoveryControllerProvider).valueOrNull;
-        expect(state?.devices, isEmpty);
       });
 
       test('updates device on DeviceUpdatedEvent', () async {

@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:bonsoir/bonsoir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/core/providers/device_info_provider.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
 import 'package:flux/src/features/discovery/domain/device_type.dart';
 import 'package:flux/src/features/discovery/domain/local_device_info.dart';
@@ -59,6 +60,14 @@ class DiscoveryRepository {
   BonsoirBroadcast? _broadcast;
   BonsoirDiscovery? _discovery;
   String? _ownServiceInstanceName;
+
+  /// Track pending services that were found but not yet resolved.
+  /// Used as fallback when TXT record resolution fails on Android.
+  final Map<String, BonsoirService> _pendingServices = {};
+
+  /// Timeout for service resolution - if resolution doesn't complete
+  /// within this time, we'll try to use the service anyway.
+  static const _resolveTimeout = Duration(seconds: 5);
 
   /// Whether currently broadcasting.
   bool get isBroadcasting => _broadcast != null;
@@ -197,9 +206,27 @@ class DiscoveryRepository {
           'port=${service.port}, host=${service.host}',
           name: 'DiscoveryRepository',
         );
+
+        // Track pending service for fallback resolution
+        _pendingServices[service.name] = service;
+
+        // Start resolution
         service.resolve(discovery.serviceResolver);
+
+        // Schedule fallback in case resolution fails (Android TXT record bug)
+        Future.delayed(_resolveTimeout, () {
+          if (_pendingServices.containsKey(service.name)) {
+            developer.log(
+              'Resolution timeout for ${service.name}, attempting fallback',
+              name: 'DiscoveryRepository',
+            );
+            _handleResolutionFallback(service, controller);
+          }
+        });
       case BonsoirDiscoveryServiceResolvedEvent():
         final service = event.service;
+        // Remove from pending since resolution succeeded
+        _pendingServices.remove(service.name);
         developer.log(
           'Service RESOLVED: name=${service.name}, type=${service.type}, '
           'port=${service.port}, host=${service.host}, '
@@ -223,6 +250,7 @@ class DiscoveryRepository {
         });
       case BonsoirDiscoveryServiceLostEvent():
         final service = event.service;
+        _pendingServices.remove(service.name);
         developer.log(
           'Service LOST: ${service.name}',
           name: 'DiscoveryRepository',
@@ -230,6 +258,7 @@ class DiscoveryRepository {
         controller.add(DeviceLostEvent(service.name));
       case BonsoirDiscoveryServiceUpdatedEvent():
         final service = event.service;
+        _pendingServices.remove(service.name);
         developer.log(
           'Service UPDATED: name=${service.name}, '
           'port=${service.port}, host=${service.host}',
@@ -240,9 +269,56 @@ class DiscoveryRepository {
             controller.add(DeviceUpdatedEvent(device));
           }
         });
+      case BonsoirDiscoveryServiceResolveFailedEvent():
+        developer.log(
+          'Service RESOLVE FAILED - attempting fallback for pending services',
+          name: 'DiscoveryRepository',
+        );
+        // Try to resolve any pending services using fallback
+        for (final entry in _pendingServices.entries.toList()) {
+          _handleResolutionFallback(entry.value, controller);
+        }
       default:
         // Lifecycle events - no action needed
         break;
+    }
+  }
+
+  /// Handle fallback resolution when normal resolution fails.
+  /// This is needed for Android's TXT record bug (bonsoir issue #117).
+  void _handleResolutionFallback(
+    BonsoirService service,
+    StreamController<DiscoveryEvent> controller,
+  ) {
+    _pendingServices.remove(service.name);
+
+    // If service has host (was partially resolved), try to use it
+    final host = service.host;
+    if (host != null && host.isNotEmpty) {
+      developer.log(
+        'Fallback: Using partially resolved service ${service.name} '
+        'with host=$host, port=${service.port}',
+        name: 'DiscoveryRepository',
+      );
+      _parseDeviceAsync(service).then((device) {
+        if (device != null) {
+          developer.log(
+            'Fallback device parsed: ${device.alias} at ${device.ip}:${device.port}',
+            name: 'DiscoveryRepository',
+          );
+          controller.add(DeviceFoundEvent(device));
+        } else {
+          developer.log(
+            'Fallback parse returned null for ${service.name}',
+            name: 'DiscoveryRepository',
+          );
+        }
+      });
+    } else {
+      developer.log(
+        'Fallback failed: Service ${service.name} has no host',
+        name: 'DiscoveryRepository',
+      );
     }
   }
 
@@ -254,14 +330,29 @@ class DiscoveryRepository {
 
     final attributes = service.attributes;
 
-    // REQUIRE ips attribute - devices without it are running old code
-    // and their broadcast may be stale. This prevents stale entries from
-    // overwriting valid ones with incorrect ports.
-    final ip = _getIpFromAttributes(attributes);
+    // Try to get IP from TXT record first, fall back to resolved host
+    // Android has a known bug where TXT records may not be available
+    // (see bonsoir issue #117)
+    var ip = _getIpFromAttributes(attributes);
+    if (ip == null) {
+      // Fall back to resolved host IP
+      final host = service.host;
+      if (host != null && host.isNotEmpty) {
+        // Validate it looks like an IPv4 address
+        final ipv4Regex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+        if (ipv4Regex.hasMatch(host)) {
+          ip = host;
+          developer.log(
+            'Using resolved host IP (TXT record unavailable): $ip',
+            name: 'DiscoveryRepository',
+          );
+        }
+      }
+    }
+
     if (ip == null) {
       developer.log(
-        'Skipping device without ips attribute: ${service.name} '
-        '(old broadcast or stale cache)',
+        'Skipping device without valid IP: ${service.name}',
         name: 'DiscoveryRepository',
       );
       return null;
@@ -281,13 +372,14 @@ class DiscoveryRepository {
       }
     }
 
-    // Skip devices with invalid port
+    // Final fallback: use default port if still 0
+    // This handles Android's TXT record bug where port can't be obtained
     if (port == 0) {
+      port = kDefaultPort;
       developer.log(
-        'Skipping device with port 0: ${service.name}',
+        'Using default port $port (service.port and TXT port unavailable)',
         name: 'DiscoveryRepository',
       );
-      return null;
     }
 
     return Device(

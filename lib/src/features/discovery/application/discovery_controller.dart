@@ -20,9 +20,18 @@ part 'discovery_controller.g.dart';
 class DiscoveryController extends _$DiscoveryController {
   StreamSubscription<DiscoveryEvent>? _scanSubscription;
   Timer? _stalenessTimer;
-  static const _stalenessCheckInterval = Duration(seconds: 30);
-  // Keep devices visible for 2 minutes to avoid flickering
-  static const _stalenessTimeout = Duration(seconds: 120);
+  static const _stalenessCheckInterval = Duration(seconds: 60);
+  // Keep devices visible for 10 minutes - mDNS doesn't send continuous updates,
+  // so we need a long timeout. DeviceLostEvent + grace period handles normal removal.
+  static const _stalenessTimeout = Duration(minutes: 10);
+
+  // US2: Scan timeout timer - sets isScanning=false after timeout
+  Timer? _scanTimeoutTimer;
+  static const _scanTimeout = Duration(seconds: 5);
+
+  // US1: Grace period for device removal - delays removal on DeviceLostEvent
+  final Map<String, Timer> _pendingRemovalTimers = {};
+  static const _removalGracePeriod = Duration(seconds: 30);
 
   /// Own device's IP address for self-filtering (set externally).
   String? _ownIpAddress;
@@ -38,6 +47,14 @@ class DiscoveryController extends _$DiscoveryController {
     _scanSubscription = null;
     _stalenessTimer?.cancel();
     _stalenessTimer = null;
+    // US2: Cancel scan timeout timer
+    _scanTimeoutTimer?.cancel();
+    _scanTimeoutTimer = null;
+    // US1: Cancel all pending removal timers
+    for (final timer in _pendingRemovalTimers.values) {
+      timer.cancel();
+    }
+    _pendingRemovalTimers.clear();
   }
 
   DiscoveryRepository get _repository => ref.read(discoveryRepositoryProvider);
@@ -62,6 +79,8 @@ class DiscoveryController extends _$DiscoveryController {
       final stream = _repository.startScan();
       _scanSubscription = stream.listen(_handleDiscoveryEvent);
       _startStalenessTimer();
+      // US2: Start scan timeout timer to set isScanning=false after timeout
+      _startScanTimeoutTimer();
     } catch (e) {
       state = AsyncData(
         currentState.copyWith(isScanning: false, error: e.toString()),
@@ -130,7 +149,8 @@ class DiscoveryController extends _$DiscoveryController {
       case DeviceUpdatedEvent(:final device):
         _addOrUpdateDevice(device);
       case DeviceLostEvent(:final serviceInstanceName):
-        _removeDevice(serviceInstanceName);
+        // US1: Schedule removal with grace period instead of immediate removal
+        _scheduleDeviceRemoval(serviceInstanceName);
       case DiscoveryErrorEvent(:final message):
         state = AsyncData(currentState.copyWith(error: message));
     }
@@ -139,6 +159,9 @@ class DiscoveryController extends _$DiscoveryController {
   void _addOrUpdateDevice(Device device) {
     final currentState = state.valueOrNull;
     if (currentState == null) return;
+
+    // US1: Cancel any pending removal for this device (it's back!)
+    _cancelPendingRemoval(device.serviceInstanceName);
 
     // Self-filtering by service name
     if (currentState.ownServiceInstanceName != null &&
@@ -288,6 +311,82 @@ class DiscoveryController extends _$DiscoveryController {
 
     state = AsyncData(currentState.copyWith(devices: devices));
   }
+
+  // =========================================================================
+  // US1: Grace Period for Device Removal
+  // =========================================================================
+
+  /// Schedules a device for removal after a grace period.
+  ///
+  /// Instead of immediately removing a device when DeviceLostEvent is received,
+  /// we wait for [_removalGracePeriod] to allow for temporary mDNS hiccups.
+  void _scheduleDeviceRemoval(String serviceInstanceName) {
+    // Cancel any existing timer for this device
+    _pendingRemovalTimers[serviceInstanceName]?.cancel();
+
+    developer.log(
+      'Scheduling device removal in ${_removalGracePeriod.inSeconds}s: '
+      '$serviceInstanceName',
+      name: 'DiscoveryController',
+    );
+
+    // Start grace period timer
+    _pendingRemovalTimers[serviceInstanceName] = Timer(
+      _removalGracePeriod,
+      () => _executeDeviceRemoval(serviceInstanceName),
+    );
+  }
+
+  /// Executes the actual device removal after grace period expires.
+  void _executeDeviceRemoval(String serviceInstanceName) {
+    developer.log(
+      'Removing device after grace period: $serviceInstanceName',
+      name: 'DiscoveryController',
+    );
+    _removeDevice(serviceInstanceName);
+    _pendingRemovalTimers.remove(serviceInstanceName);
+  }
+
+  /// Cancels a pending device removal (called when device re-appears).
+  void _cancelPendingRemoval(String serviceInstanceName) {
+    final timer = _pendingRemovalTimers.remove(serviceInstanceName);
+    if (timer != null) {
+      timer.cancel();
+      developer.log(
+        'Cancelled pending removal for: $serviceInstanceName',
+        name: 'DiscoveryController',
+      );
+    }
+  }
+
+  // =========================================================================
+  // US2: Scan Timeout Timer
+  // =========================================================================
+
+  /// Starts the scan timeout timer.
+  ///
+  /// After [_scanTimeout] seconds, sets isScanning to false so the refresh
+  /// button becomes available again. Discovery continues in the background.
+  void _startScanTimeoutTimer() {
+    _scanTimeoutTimer?.cancel();
+    _scanTimeoutTimer = Timer(_scanTimeout, _onScanTimeout);
+  }
+
+  /// Called when scan timeout expires.
+  void _onScanTimeout() {
+    final currentState = state.valueOrNull;
+    if (currentState != null && currentState.isScanning) {
+      developer.log(
+        'Scan timeout reached, setting isScanning to false',
+        name: 'DiscoveryController',
+      );
+      state = AsyncData(currentState.copyWith(isScanning: false));
+    }
+  }
+
+  // =========================================================================
+  // Staleness Timer (existing)
+  // =========================================================================
 
   void _startStalenessTimer() {
     _stalenessTimer?.cancel();
