@@ -27,3 +27,24 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# FVM Version Cache
+.fvm/
+
+# Flutter/Dart generated files
+*.g.dart
+*.freezed.dart
+*.gr.dart
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Database files (local development)
+*.sqlite
+*.sqlite3
+*.db

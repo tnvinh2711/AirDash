@@ -1,0 +1,22 @@
+# FLUX Analysis Options
+# Uses Very Good Analysis for strict linting per constitution requirements.
+# See: https://pub.dev/packages/very_good_analysis
+
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  errors:
+    avoid_slow_async_io: ignore
+  exclude:
+    # Generated files
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    # Build outputs
+    - "build/**"
+    - ".dart_tool/**"
+    - "specs/**"
+
+linter:
+  rules:
+    # Allow single-line `if` statements for simple returns
+    always_put_control_body_on_new_line: false
