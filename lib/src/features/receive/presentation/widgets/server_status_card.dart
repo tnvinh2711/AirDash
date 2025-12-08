@@ -31,9 +31,11 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
 
     // Debug: log state
     // ignore: avoid_print
-    print('[ServerStatusCard] build: hasTriggered=$_hasTriggeredAutoStart, '
-        'serverState=$serverState, receiveSettings=$receiveSettings, '
-        'isRunning=$isServerRunning, isLoading=$isLoading');
+    print(
+      '[ServerStatusCard] build: hasTriggered=$_hasTriggeredAutoStart, '
+      'serverState=$serverState, receiveSettings=$receiveSettings, '
+      'isRunning=$isServerRunning, isLoading=$isLoading',
+    );
 
     // Auto-start server on first build (after initial state is available)
     // Wait for both server state and receive settings to be ready
@@ -44,13 +46,15 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
         !isLoading) {
       _hasTriggeredAutoStart = true;
       // ignore: avoid_print
-      print('[ServerStatusCard] Triggering auto-start with quickSave='
-          '${receiveSettings.quickSaveEnabled}');
+      print(
+        '[ServerStatusCard] Triggering auto-start with quickSave='
+        '${receiveSettings.quickSaveEnabled}',
+      );
       // Schedule after build to avoid setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(serverControllerProvider.notifier).startServer(
-              quickSaveEnabled: receiveSettings.quickSaveEnabled,
-            );
+        ref
+            .read(serverControllerProvider.notifier)
+            .startServer(quickSaveEnabled: receiveSettings.quickSaveEnabled);
       });
     }
 
@@ -151,4 +155,3 @@ class _ServerStatusCardState extends ConsumerState<ServerStatusCard> {
     return 'Starting server...';
   }
 }
-

@@ -1,3 +1,5 @@
+import 'package:flux/src/features/receive/application/server_controller.dart'
+    show ServerController;
 import 'package:flux/src/features/receive/domain/isolate_event.dart';
 import 'package:flux/src/features/receive/domain/transfer_progress.dart';
 import 'package:flux/src/features/receive/domain/transfer_session.dart';
@@ -72,7 +74,8 @@ class ServerState with _$ServerState {
   factory ServerState.stopped() => const ServerState();
 
   /// Whether the server is idle (running but no active transfer).
-  bool get isIdle => isRunning && activeSession == null && pendingRequest == null;
+  bool get isIdle =>
+      isRunning && activeSession == null && pendingRequest == null;
 
   /// Whether the server is in a transitional state (starting or stopping).
   bool get isTransitioning => isStarting || isStopping;

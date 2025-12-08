@@ -79,7 +79,11 @@ void main() {
 
       final state1 = await container.read(serverControllerProvider.future);
       final port1 = state1.port;
-      expect(state1.isRunning, isTrue, reason: 'Server should be running after startServer');
+      expect(
+        state1.isRunning,
+        isTrue,
+        reason: 'Server should be running after startServer',
+      );
 
       // Call startServer again - should be no-op
       await controller.startServer();

@@ -24,10 +24,7 @@ class FilePickerService {
   /// Returns a list of [SelectedItem] for each selected file, or an empty
   /// list if the user cancels.
   Future<List<SelectedItem>> pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.any,
-    );
+    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
 
     if (result == null || result.files.isEmpty) {
       return [];

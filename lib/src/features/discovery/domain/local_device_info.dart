@@ -36,7 +36,8 @@ class LocalDeviceInfo with _$LocalDeviceInfo {
       'deviceType': deviceType.name,
       'os': os,
       'version': '1',
-      // Include port in TXT record as fallback (Android NSD sometimes returns 0)
+      // Include port in TXT record as fallback
+      // (Android NSD sometimes returns 0)
       'port': port.toString(),
       // Include IP addresses for direct connection (comma-separated)
       if (ipAddresses.isNotEmpty) 'ips': ipAddresses.join(','),

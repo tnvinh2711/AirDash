@@ -29,7 +29,8 @@ enum PermissionResult {
 /// Handles different Android versions:
 /// - Android 9 and below: No runtime permission needed for app-specific storage
 /// - Android 10 (API 29): Uses legacy storage with requestLegacyExternalStorage
-/// - Android 11+ (API 30+): Requires MANAGE_EXTERNAL_STORAGE for broad file access
+/// - Android 11+ (API 30+): Requires MANAGE_EXTERNAL_STORAGE for broad
+///   file access
 @riverpod
 class PermissionController extends _$PermissionController {
   /// Completer for ongoing permission request to prevent concurrent requests.

@@ -135,7 +135,7 @@ void main() {
         expect(state?.isScanning, isFalse);
       });
 
-      test('clears devices list', () async {
+      test('preserves devices list after stopping', () async {
         final mockRepository = MockDiscoveryRepository();
         final eventController = StreamController<DiscoveryEvent>.broadcast();
         final container = ProviderContainer(
@@ -175,8 +175,9 @@ void main() {
 
         await controller.stopScan();
 
+        // Devices are preserved after stopping scan (not cleared)
         state = container.read(discoveryControllerProvider).valueOrNull;
-        expect(state?.devices, isEmpty);
+        expect(state?.devices.length, equals(1));
       });
     });
 

@@ -16,10 +16,7 @@ class HistoryScreen extends ConsumerWidget {
     final historyAsync = ref.watch(historyStreamProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transfer History'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Transfer History'), centerTitle: true),
       body: historyAsync.when(
         data: (entries) {
           if (entries.isEmpty) {
@@ -56,11 +53,7 @@ class HistoryScreen extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.history,
-            size: 64,
-            color: theme.colorScheme.outline,
-          ),
+          Icon(Icons.history, size: 64, color: theme.colorScheme.outline),
           const SizedBox(height: 16),
           Text(
             'No transfers yet',
@@ -80,6 +73,3 @@ class HistoryScreen extends ConsumerWidget {
     );
   }
 }
-
-
-

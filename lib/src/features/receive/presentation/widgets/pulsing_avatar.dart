@@ -7,11 +7,7 @@ import 'package:flutter/material.dart';
 /// animation stops and resets.
 class PulsingAvatar extends StatefulWidget {
   /// Creates a [PulsingAvatar] widget.
-  const PulsingAvatar({
-    required this.isActive,
-    required this.child,
-    super.key,
-  });
+  const PulsingAvatar({required this.isActive, required this.child, super.key});
 
   /// Whether the pulsing animation is active.
   final bool isActive;
@@ -40,18 +36,12 @@ class _PulsingAvatarState extends State<PulsingAvatar>
     _scaleAnimation = Tween<double>(
       begin: 1,
       end: 1.15,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     _opacityAnimation = Tween<double>(
       begin: 0.7,
       end: 0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     if (widget.isActive) {
       _controller.repeat();
@@ -95,8 +85,9 @@ class _PulsingAvatarState extends State<PulsingAvatar>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: theme.colorScheme.primary
-                        .withValues(alpha: _opacityAnimation.value),
+                    color: theme.colorScheme.primary.withValues(
+                      alpha: _opacityAnimation.value,
+                    ),
                     width: 3,
                   ),
                 ),
@@ -110,5 +101,3 @@ class _PulsingAvatarState extends State<PulsingAvatar>
     );
   }
 }
-
-

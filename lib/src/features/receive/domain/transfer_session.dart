@@ -31,30 +31,14 @@ class TransferSession with _$TransferSession {
     String? failureReason,
   }) = _TransferSession;
 
-  const TransferSession._();
-
-  /// Session timeout duration (5 minutes).
-  static const timeout = Duration(minutes: 5);
-
-  /// Whether the session has expired.
-  bool get isExpired {
-    return DateTime.now().difference(createdAt) > timeout;
-  }
-
-  /// Whether the session is in a terminal state.
-  bool get isTerminal {
-    return status == SessionStatus.completed ||
-        status == SessionStatus.failed ||
-        status == SessionStatus.cancelled;
-  }
-
   /// Creates a new session awaiting user acceptance.
   factory TransferSession.awaitingAccept({
     required String requestId,
     required TransferMetadata metadata,
   }) {
     return TransferSession(
-      sessionId: '', // Assigned after accept
+      sessionId: '',
+      // Assigned after accept
       requestId: requestId,
       metadata: metadata,
       createdAt: DateTime.now(),
@@ -75,5 +59,22 @@ class TransferSession with _$TransferSession {
       createdAt: DateTime.now(),
       status: SessionStatus.accepted,
     );
+  }
+
+  const TransferSession._();
+
+  /// Session timeout duration (5 minutes).
+  static const timeout = Duration(minutes: 5);
+
+  /// Whether the session has expired.
+  bool get isExpired {
+    return DateTime.now().difference(createdAt) > timeout;
+  }
+
+  /// Whether the session is in a terminal state.
+  bool get isTerminal {
+    return status == SessionStatus.completed ||
+        status == SessionStatus.failed ||
+        status == SessionStatus.cancelled;
   }
 }

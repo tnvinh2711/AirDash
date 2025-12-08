@@ -11,9 +11,7 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('compression_test_');
-    service = CompressionService(
-      tempDirProvider: () async => tempDir,
-    );
+    service = CompressionService(tempDirProvider: () async => tempDir);
   });
 
   tearDown(() async {
@@ -202,4 +200,3 @@ void main() {
     });
   });
 }
-

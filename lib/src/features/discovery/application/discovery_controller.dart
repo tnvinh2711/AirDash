@@ -195,7 +195,8 @@ class DiscoveryController extends _$DiscoveryController {
       final oldDevice = devices[existingByIpIndex];
       if (oldDevice.port != device.port) {
         developer.log(
-          'Device port changed: ${device.alias} ${oldDevice.port} -> ${device.port}, verifying...',
+          'Device port changed: ${device.alias} '
+          '${oldDevice.port} -> ${device.port}, verifying...',
           name: 'DiscoveryController',
         );
         // Port changed - verify new port before updating
@@ -223,7 +224,8 @@ class DiscoveryController extends _$DiscoveryController {
   /// and let the transfer fail gracefully if the device is unreachable.
   void _verifyAndAddDevice(Device device) {
     developer.log(
-      'Adding discovered device: ${device.alias} at ${device.ip}:${device.port}',
+      'Adding discovered device: ${device.alias} '
+      'at ${device.ip}:${device.port}',
       name: 'DiscoveryController',
     );
 

@@ -1,13 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flux/src/features/send/application/file_selection_controller.dart';
-import 'package:flux/src/features/send/domain/selected_item.dart';
 import 'package:flux/src/features/send/domain/selected_item_type.dart';
 import 'package:flux/src/features/settings/application/settings_provider.dart';
 import 'package:flux/src/features/settings/data/settings_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
-/// Mock SettingsRepository that stores selection as JSON string (matching real API).
+/// Mock SettingsRepository that stores selection
+/// as JSON string (matching real API).
 class MockSettingsRepository extends Mock implements SettingsRepository {
   String? _selectionQueueJson;
 
@@ -66,12 +66,12 @@ void main() {
       await waitForControllerInit();
 
       // Add some items via pasteText
-      await container
+      container
           .read(fileSelectionControllerProvider.notifier)
           .pasteText('Test');
 
       // Act
-      await container.read(fileSelectionControllerProvider.notifier).clear();
+      container.read(fileSelectionControllerProvider.notifier).clear();
       final state = container.read(fileSelectionControllerProvider);
 
       // Assert
@@ -88,7 +88,7 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('Hello World');
         final state = container.read(fileSelectionControllerProvider);
@@ -109,10 +109,10 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('B');
         final state = container.read(fileSelectionControllerProvider);
@@ -132,7 +132,7 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText(text);
         final state = container.read(fileSelectionControllerProvider);
@@ -151,7 +151,7 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('');
         final state = container.read(fileSelectionControllerProvider);
@@ -172,7 +172,7 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText(text);
         final state = container.read(fileSelectionControllerProvider);
@@ -193,20 +193,20 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('B');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('C');
         final items = container.read(fileSelectionControllerProvider);
         final idToRemove = items[1].id;
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .removeItem(idToRemove);
         final state = container.read(fileSelectionControllerProvider);
@@ -225,12 +225,12 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .removeItem('nonexistent-id');
         final state = container.read(fileSelectionControllerProvider);
@@ -247,14 +247,14 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
         final items = container.read(fileSelectionControllerProvider);
         final idToRemove = items.first.id;
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .removeItem(idToRemove);
         final state = container.read(fileSelectionControllerProvider);
@@ -274,13 +274,13 @@ void main() {
         await waitForControllerInit();
 
         // Act
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('1');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('2');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('3');
         final state = container.read(fileSelectionControllerProvider);
@@ -297,10 +297,10 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('AB'); // 2 bytes
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('CDE'); // 3 bytes
 
@@ -320,10 +320,10 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('B');
 
@@ -358,7 +358,7 @@ void main() {
         // Wait for initial build
         await waitForControllerInit();
 
-        await container
+        container
             .read(fileSelectionControllerProvider.notifier)
             .pasteText('A');
 

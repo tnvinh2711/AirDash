@@ -115,7 +115,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         final failCount = results.length - successCount;
         showInfoToast(
           context,
-          'Sent $successCount, failed $failCount file${failCount == 1 ? '' : 's'}',
+          'Sent $successCount, failed $failCount '
+          "file${failCount == 1 ? '' : 's'}",
         );
       case TransferStateCancelled():
         showInfoToast(context, 'Transfer cancelled');

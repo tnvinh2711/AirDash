@@ -13,10 +13,7 @@ const _autoDeclineTimeout = Duration(seconds: 30);
 /// Shows sender info, file details, and countdown timer for auto-decline.
 class PendingRequestSheet extends ConsumerStatefulWidget {
   /// Creates a [PendingRequestSheet].
-  const PendingRequestSheet({
-    required this.request,
-    super.key,
-  });
+  const PendingRequestSheet({required this.request, super.key});
 
   /// The pending transfer request to display.
   final IncomingRequestEvent request;
@@ -254,4 +251,3 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
-

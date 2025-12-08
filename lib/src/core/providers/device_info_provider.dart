@@ -169,7 +169,6 @@ class DeviceInfoProvider {
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
-        includeLinkLocal: false,
       );
 
       final addresses = <String>[];

@@ -90,6 +90,10 @@ void main() {
           sessionId: 'sess-123',
           savedPath: '/downloads/photo.jpg',
           checksumVerified: true,
+          fileName: 'photo.jpg',
+          fileSize: 1024,
+          fileCount: 1,
+          senderAlias: 'TestSender',
         );
 
         final map = event.toMap();
@@ -128,4 +132,3 @@ void main() {
     });
   });
 }
-

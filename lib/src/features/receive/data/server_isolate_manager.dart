@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:isolate';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/receive/data/server_isolate_entry.dart';
 import 'package:flux/src/features/receive/domain/isolate_command.dart';
 import 'package:flux/src/features/receive/domain/isolate_config.dart';
@@ -178,14 +179,19 @@ class ServerIsolateManager {
       print('[ServerIsolateManager] Handshake complete');
     } on TimeoutException {
       developer.log(
-        'Handshake timeout after ${_handshakeTimeout.inSeconds}s - isolate did not respond',
+        'Handshake timeout after ${_handshakeTimeout.inSeconds}s - '
+        'isolate did not respond',
         name: 'ServerIsolateManager',
       );
       // ignore: avoid_print
-      print('[ServerIsolateManager] Handshake TIMEOUT after ${_handshakeTimeout.inSeconds}s!');
+      print(
+        '[ServerIsolateManager] Handshake TIMEOUT '
+        'after ${_handshakeTimeout.inSeconds}s!',
+      );
       await _cleanup();
       throw Exception(
-        'Server isolate handshake timeout after ${_handshakeTimeout.inSeconds}s',
+        'Server isolate handshake timeout '
+        'after ${_handshakeTimeout.inSeconds}s',
       );
     }
 
@@ -213,10 +219,9 @@ class ServerIsolateManager {
 
   /// Sends a handshake response to the isolate.
   void respondHandshake({required String requestId, required bool accepted}) {
-    _sendCommand(IsolateCommand.respondHandshake(
-      requestId: requestId,
-      accepted: accepted,
-    ));
+    _sendCommand(
+      IsolateCommand.respondHandshake(requestId: requestId, accepted: accepted),
+    );
   }
 
   /// Disposes all resources.
@@ -287,9 +292,8 @@ class ServerIsolateManager {
 /// isolate should persist as long as the app is running, not just when
 /// the ReceiveScreen is visible.
 @Riverpod(keepAlive: true)
-ServerIsolateManager serverIsolateManager(ServerIsolateManagerRef ref) {
+ServerIsolateManager serverIsolateManager(Ref ref) {
   final manager = ServerIsolateManager();
-  ref.onDispose(() => manager.dispose());
+  ref.onDispose(manager.dispose);
   return manager;
 }
-

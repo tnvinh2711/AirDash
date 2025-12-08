@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flux/src/features/send/data/dtos/handshake_request.dart';
-import 'package:flux/src/features/send/data/dtos/handshake_response.dart';
-import 'package:flux/src/features/send/data/dtos/upload_response.dart';
 import 'package:flux/src/features/send/data/transfer_client_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
@@ -37,7 +35,7 @@ void main() {
     group('handshake', () {
       test('sends handshake request and returns response on success', () async {
         // Arrange
-        final request = HandshakeRequest(
+        const request = HandshakeRequest(
           fileName: 'test.txt',
           fileSize: 1024,
           fileType: 'txt',
@@ -77,7 +75,7 @@ void main() {
 
       test('returns rejected response when server is busy', () async {
         // Arrange
-        final request = HandshakeRequest(
+        const request = HandshakeRequest(
           fileName: 'test.txt',
           fileSize: 1024,
           fileType: 'txt',
@@ -156,6 +154,7 @@ void main() {
           port: 8080,
           sessionId: 'session-456',
           filePath: testFile.path,
+          fileName: 'upload.txt',
           fileSize: await testFile.length(),
           onProgress: (sent, total) {
             progressValues.add(sent / total);
@@ -172,4 +171,3 @@ void main() {
     });
   });
 }
-

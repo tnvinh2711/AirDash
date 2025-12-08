@@ -17,6 +17,15 @@ class TransferProgress with _$TransferProgress {
     required DateTime startedAt,
   }) = _TransferProgress;
 
+  /// Creates an initial progress instance.
+  factory TransferProgress.start(int totalBytes) {
+    return TransferProgress(
+      bytesReceived: 0,
+      totalBytes: totalBytes,
+      startedAt: DateTime.now(),
+    );
+  }
+
   const TransferProgress._();
 
   /// Progress percentage (0-100).
@@ -38,14 +47,5 @@ class TransferProgress with _$TransferProgress {
     if (rate <= 0) return 0;
     final remaining = totalBytes - bytesReceived;
     return (remaining / rate).ceil();
-  }
-
-  /// Creates an initial progress instance.
-  factory TransferProgress.start(int totalBytes) {
-    return TransferProgress(
-      bytesReceived: 0,
-      totalBytes: totalBytes,
-      startedAt: DateTime.now(),
-    );
   }
 }

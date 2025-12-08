@@ -81,4 +81,3 @@ class QuickSaveSwitch extends ConsumerWidget {
         .setQuickSave(enabled: enabled);
   }
 }
-

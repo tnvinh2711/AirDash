@@ -49,4 +49,3 @@ class PendingTransferRequest with _$PendingTransferRequest {
   /// Whether the request has timed out.
   bool get hasTimedOut => timeRemaining == Duration.zero;
 }
-

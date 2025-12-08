@@ -43,5 +43,3 @@ Future<String?> localIpAddress(Ref ref) async {
   final deviceInfoProvider = ref.watch(deviceInfoProviderProvider);
   return deviceInfoProvider.getLocalIpAddress();
 }
-
-

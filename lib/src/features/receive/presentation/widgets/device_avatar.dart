@@ -7,11 +7,7 @@ import 'package:flux/src/features/discovery/domain/device_type.dart';
 /// device types within a circular container.
 class DeviceAvatar extends StatelessWidget {
   /// Creates a [DeviceAvatar] widget.
-  const DeviceAvatar({
-    required this.deviceType,
-    this.size = 80,
-    super.key,
-  });
+  const DeviceAvatar({required this.deviceType, this.size = 80, super.key});
 
   /// The type of device to display.
   final DeviceType deviceType;
@@ -54,5 +50,3 @@ class DeviceAvatar extends StatelessWidget {
     }
   }
 }
-
-

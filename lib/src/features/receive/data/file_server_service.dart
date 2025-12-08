@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/history/application/history_provider.dart';
@@ -10,6 +9,7 @@ import 'package:flux/src/features/history/domain/new_transfer_history_entry.dart
 import 'package:flux/src/features/history/domain/transfer_direction.dart';
 import 'package:flux/src/features/history/domain/transfer_status.dart';
 import 'package:flux/src/features/receive/data/file_storage_service.dart';
+import 'package:flux/src/features/receive/data/server_isolate_manager.dart';
 import 'package:flux/src/features/receive/domain/session_status.dart';
 import 'package:flux/src/features/receive/domain/transfer_event.dart';
 import 'package:flux/src/features/receive/domain/transfer_metadata.dart';
@@ -22,18 +22,14 @@ import 'package:uuid/uuid.dart';
 
 part 'file_server_service.g.dart';
 
-
-
 /// HTTP server service for receiving file transfers.
 ///
 /// Provides REST endpoints for handshake and file upload.
 class FileServerService {
   /// Creates a [FileServerService].
-  FileServerService({
-    required FileStorageService storageService,
-    Ref? ref,
-  })  : _storageService = storageService,
-        _ref = ref;
+  FileServerService({required FileStorageService storageService, Ref? ref})
+    : _storageService = storageService,
+      _ref = ref;
 
   final FileStorageService _storageService;
   final Ref? _ref;
@@ -89,6 +85,8 @@ class FileServerService {
   /// Starts the HTTP server on an available port.
   ///
   /// Returns the port number the server is bound to.
+  /// Note: This runs in the main isolate. For production use,
+  /// [ServerIsolateManager] runs the server in a background isolate.
   Future<int> start({int preferredPort = 0}) async {
     if (_server != null) {
       developer.log(
@@ -98,35 +96,33 @@ class FileServerService {
       return _server!.port;
     }
 
-    print('[FileServerService] Attempting to start server on port $preferredPort');
+    developer.log(
+      'Starting server on port $preferredPort',
+      name: 'FileServerService',
+    );
 
     try {
-      // Use fixed port 53318 for testing (near LocalSend's 53317)
-      final testPort = preferredPort == 0 ? 53318 : preferredPort;
-      print('[FileServerService] Trying to start server in isolate on port $testPort');
-
-      // Create a ReceivePort to get the server port from isolate
-      final receivePort = ReceivePort();
-
-      // Spawn isolate to run server
-      await Isolate.spawn(
-        _serverIsolateEntry,
-        _IsolateParams(sendPort: receivePort.sendPort, port: testPort),
+      // Start HTTP server using shelf_io
+      // Port 0 means use any available ephemeral port
+      _server = await shelf_io.serve(
+        _getHandler(),
+        InternetAddress.anyIPv4,
+        preferredPort,
       );
 
-      // Wait for server to start and get the port
-      final result = await receivePort.first;
-      if (result is int) {
-        print('[FileServerService] Server started in isolate on port $result');
-        return result;
-      } else if (result is String) {
-        print('[FileServerService] Server error: $result');
-        throw Exception(result);
-      }
+      developer.log(
+        'Server started on port ${_server!.port}',
+        name: 'FileServerService',
+      );
 
-      throw Exception('Unexpected result from isolate: $result');
+      return _server!.port;
     } catch (e, stack) {
-      print('[FileServerService] Failed to start server: $e\n$stack');
+      developer.log(
+        'Failed to start server: $e',
+        name: 'FileServerService',
+        error: e,
+        stackTrace: stack,
+      );
       rethrow;
     }
   }
@@ -183,8 +179,9 @@ class FileServerService {
       // Check storage space
       final availableSpace = await _storageService.getAvailableSpace();
       if (metadata.fileSize > availableSpace) {
-        _eventController
-            .add(const HandshakeRejectedEvent('insufficient_storage'));
+        _eventController.add(
+          const HandshakeRejectedEvent('insufficient_storage'),
+        );
         return Response(
           507,
           body: jsonEncode({
@@ -267,15 +264,19 @@ class FileServerService {
       final totalBytes = metadata.fileSize;
       final progressStream = request.read().map((chunk) {
         bytesReceived += chunk.length;
-        _eventController.add(UploadProgressEvent(
-          bytesReceived: bytesReceived,
-          totalBytes: totalBytes,
-        ));
+        _eventController.add(
+          UploadProgressEvent(
+            bytesReceived: bytesReceived,
+            totalBytes: totalBytes,
+          ),
+        );
         return chunk;
       });
 
-      final result =
-          await _storageService.writeStream(filePath, progressStream);
+      final result = await _storageService.writeStream(
+        filePath,
+        progressStream,
+      );
 
       // Verify checksum
       final checksumMatch =
@@ -299,10 +300,9 @@ class FileServerService {
         finalPath = await _storageService.extractZip(result.path);
       }
 
-      _eventController.add(UploadCompletedEvent(
-        savedPath: finalPath,
-        checksumVerified: true,
-      ));
+      _eventController.add(
+        UploadCompletedEvent(savedPath: finalPath, checksumVerified: true),
+      );
       await _recordHistory(TransferStatus.completed);
       _clearSession();
 
@@ -329,8 +329,9 @@ class FileServerService {
     _sessionTimer?.cancel();
     _sessionTimer = Timer(TransferSession.timeout, () {
       if (_activeSession != null) {
-        _activeSession =
-            _activeSession!.copyWith(status: SessionStatus.cancelled);
+        _activeSession = _activeSession!.copyWith(
+          status: SessionStatus.cancelled,
+        );
         _eventController.add(const UploadFailedEvent('session_expired'));
         _clearSession();
       }
@@ -371,71 +372,9 @@ class FileServerService {
 @riverpod
 FileServerService fileServerService(Ref ref) {
   final storageService = ref.watch(fileStorageServiceProvider);
-  final service = FileServerService(storageService: storageService, ref: ref);
-  // Pre-initialize handler to avoid lag on first start
-  service.warmUp();
+  final service = FileServerService(storageService: storageService, ref: ref)
+    // Pre-initialize handler to avoid lag on first start
+    ..warmUp();
   ref.onDispose(service.dispose);
   return service;
-}
-
-
-
-/// A minimal HttpServer wrapper for raw ServerSocket for compatibility.
-class _RawSocketHttpServer implements HttpServer {
-  final ServerSocket _serverSocket;
-
-  _RawSocketHttpServer(this._serverSocket);
-
-  @override
-  InternetAddress get address => _serverSocket.address;
-
-  @override
-  int get port => _serverSocket.port;
-
-  @override
-  Future<void> close({bool force = false}) async {
-    await _serverSocket.close();
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
-}
-
-/// Parameters for server isolate
-class _IsolateParams {
-  final SendPort sendPort;
-  final int port;
-
-  _IsolateParams({required this.sendPort, required this.port});
-}
-
-/// Entry point for server isolate
-void _serverIsolateEntry(_IsolateParams params) async {
-  print('[ServerIsolate] Starting server on port ${params.port}');
-
-  try {
-    final httpServer = await HttpServer.bind(
-      InternetAddress.anyIPv4,
-      params.port,
-    );
-
-    print('[ServerIsolate] HttpServer.bind succeeded: ${httpServer.address.address}:${httpServer.port}');
-
-    // Send port back to main isolate
-    params.sendPort.send(httpServer.port);
-
-    // Handle requests
-    httpServer.listen((HttpRequest request) {
-      print('[ServerIsolate] Received request: ${request.method} ${request.uri.path}');
-      request.response.statusCode = 200;
-      request.response.headers.contentType = ContentType.json;
-      request.response.write('{"status":"ok","port":${httpServer.port}}');
-      request.response.close();
-    });
-
-    print('[ServerIsolate] Server listening...');
-  } catch (e, stack) {
-    print('[ServerIsolate] Error: $e\n$stack');
-    params.sendPort.send('Error: $e');
-  }
 }

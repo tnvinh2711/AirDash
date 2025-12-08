@@ -270,7 +270,8 @@ class ServerController extends _$ServerController {
     if (currentState?.pendingRequest != null) {
       _lastAcceptedRequest = currentState!.pendingRequest;
       debugPrint(
-        '[ServerController] Saved accepted request: ${_lastAcceptedRequest?.fileName}',
+        '[ServerController] Saved accepted request: '
+        '${_lastAcceptedRequest?.fileName}',
       );
     }
 

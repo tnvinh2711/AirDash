@@ -24,16 +24,16 @@ class IsolateConfig with _$IsolateConfig {
 
   /// Converts to isolate-safe Map for transmission via SendPort.
   Map<String, dynamic> toMap() => {
-        'port': port,
-        'destinationPath': destinationPath,
-        'quickSaveEnabled': quickSaveEnabled,
-      };
+    'port': port,
+    'destinationPath': destinationPath,
+    'quickSaveEnabled': quickSaveEnabled,
+  };
 
   /// Creates from isolate-received Map.
+  // ignore: prefer_constructors_over_static_methods
   static IsolateConfig fromMap(Map<String, dynamic> map) => IsolateConfig(
-        port: map['port'] as int,
-        destinationPath: map['destinationPath'] as String,
-        quickSaveEnabled: map['quickSaveEnabled'] as bool,
-      );
+    port: map['port'] as int,
+    destinationPath: map['destinationPath'] as String,
+    quickSaveEnabled: map['quickSaveEnabled'] as bool,
+  );
 }
-

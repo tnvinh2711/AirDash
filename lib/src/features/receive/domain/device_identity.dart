@@ -27,5 +27,3 @@ class DeviceIdentity with _$DeviceIdentity {
     int? port,
   }) = _DeviceIdentity;
 }
-
-

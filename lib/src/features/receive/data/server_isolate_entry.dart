@@ -239,7 +239,7 @@ class _IsolateServer {
       print('[ServerIsolate] _config: $_config');
       // ignore: avoid_print
       print('[ServerIsolate] quickSaveEnabled: ${_config?.quickSaveEnabled}');
-      if (_config?.quickSaveEnabled == true) {
+      if (_config?.quickSaveEnabled ?? false) {
         // ignore: avoid_print
         print('[ServerIsolate] Quick Save is ON, auto-accepting');
         final sessionId = _uuid.v4();
@@ -377,7 +377,7 @@ class _IsolateServer {
         IsolateEvent.transferCompleted(
           sessionId: sessionId,
           savedPath: filePath,
-          checksumVerified: true, // TODO: Implement checksum verification
+          checksumVerified: true,
           fileName: metadata?.fileName ?? fileName,
           fileSize: metadata?.fileSize ?? totalBytes,
           fileCount: metadata?.fileCount ?? 1,

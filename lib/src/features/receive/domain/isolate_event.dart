@@ -68,7 +68,8 @@ sealed class IsolateEvent with _$IsolateEvent {
   const factory IsolateEvent.transferFailed({
     required String sessionId,
     required String reason,
-    // File metadata for history recording (optional, may be null if error before handshake)
+    // File metadata for history recording
+    // (optional, may be null if error before handshake)
     String? fileName,
     int? fileSize,
     int? fileCount,

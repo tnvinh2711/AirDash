@@ -16,12 +16,10 @@ Widget createTestApp() {
   return ProviderScope(
     overrides: [
       // Override serverControllerProvider to return a stopped state immediately
-      serverControllerProvider.overrideWith(
-        () => _MockServerController(),
-      ),
+      serverControllerProvider.overrideWith(_MockServerController.new),
       // Override receiveSettingsNotifierProvider to return default settings
       receiveSettingsNotifierProvider.overrideWith(
-        () => _MockReceiveSettingsNotifier(),
+        _MockReceiveSettingsNotifier.new,
       ),
       // Override deviceIdentityProvider to return mock identity
       deviceIdentityProvider.overrideWith(
@@ -51,7 +49,10 @@ class _MockServerController extends ServerController {
   }
 
   @override
-  Future<void> startServer() async {
+  Future<void> startServer({
+    String? destinationPath,
+    bool quickSaveEnabled = false,
+  }) async {
     // No-op in tests - prevents auto-start from triggering
   }
 
@@ -180,4 +181,3 @@ void main() {
     });
   });
 }
-

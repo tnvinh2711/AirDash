@@ -2,6 +2,7 @@ import 'package:flux/src/features/send/domain/selected_item_type.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'selected_item.freezed.dart';
+
 part 'selected_item.g.dart';
 
 /// An item in the selection queue awaiting transfer.
@@ -15,17 +16,17 @@ class SelectedItem with _$SelectedItem {
     /// Type discriminator (file, folder, text, or media).
     required SelectedItemType type,
 
-    /// File/folder path (null for text).
-    String? path,
-
-    /// Text content (null for file/folder/media).
-    String? content,
-
     /// Human-readable name for display.
     required String displayName,
 
     /// Size in bytes (estimate for folders).
     required int sizeEstimate,
+
+    /// File/folder path (null for text).
+    String? path,
+
+    /// Text content (null for file/folder/media).
+    String? content,
   }) = _SelectedItem;
 
   const SelectedItem._();

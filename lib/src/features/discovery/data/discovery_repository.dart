@@ -85,7 +85,8 @@ class DiscoveryRepository {
     );
 
     developer.log(
-      'Starting broadcast: name=${service.name}, type=${service.type}, port=${service.port}, attributes=${service.attributes}',
+      'Starting broadcast: name=${service.name}, type=${service.type}, '
+      'port=${service.port}, attributes=${service.attributes}',
       name: 'DiscoveryRepository',
     );
 
@@ -192,14 +193,17 @@ class DiscoveryRepository {
         if (discovery == null) return;
         final service = event.service;
         developer.log(
-          'Service FOUND: name=${service.name}, type=${service.type}, port=${service.port}, host=${service.host}',
+          'Service FOUND: name=${service.name}, type=${service.type}, '
+          'port=${service.port}, host=${service.host}',
           name: 'DiscoveryRepository',
         );
         service.resolve(discovery.serviceResolver);
       case BonsoirDiscoveryServiceResolvedEvent():
         final service = event.service;
         developer.log(
-          'Service RESOLVED: name=${service.name}, type=${service.type}, port=${service.port}, host=${service.host}, attributes=${service.attributes}',
+          'Service RESOLVED: name=${service.name}, type=${service.type}, '
+          'port=${service.port}, host=${service.host}, '
+          'attributes=${service.attributes}',
           name: 'DiscoveryRepository',
         );
         // Parse device async to resolve hostname to IP
@@ -227,7 +231,8 @@ class DiscoveryRepository {
       case BonsoirDiscoveryServiceUpdatedEvent():
         final service = event.service;
         developer.log(
-          'Service UPDATED: name=${service.name}, port=${service.port}, host=${service.host}',
+          'Service UPDATED: name=${service.name}, '
+          'port=${service.port}, host=${service.host}',
           name: 'DiscoveryRepository',
         );
         _parseDeviceAsync(service).then((device) {

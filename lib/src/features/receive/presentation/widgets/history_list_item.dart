@@ -8,10 +8,7 @@ import 'package:flux/src/features/history/domain/transfer_status.dart';
 /// Shows direction icon, file name, device name, timestamp, and status.
 class HistoryListItem extends StatelessWidget {
   /// Creates a [HistoryListItem] widget.
-  const HistoryListItem({
-    required this.entry,
-    super.key,
-  });
+  const HistoryListItem({required this.entry, super.key});
 
   /// The transfer history entry to display.
   final TransferHistoryEntry entry;
@@ -22,11 +19,7 @@ class HistoryListItem extends StatelessWidget {
 
     return ListTile(
       leading: _buildDirectionIcon(theme),
-      title: Text(
-        entry.fileName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(entry.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${entry.remoteDeviceAlias} • ${_formatTimestamp(entry.timestamp)}',
         style: theme.textTheme.bodySmall?.copyWith(
@@ -67,17 +60,9 @@ class HistoryListItem extends StatelessWidget {
           size: 20,
         );
       case TransferStatus.failed:
-        return Icon(
-          Icons.error,
-          color: theme.colorScheme.error,
-          size: 20,
-        );
+        return Icon(Icons.error, color: theme.colorScheme.error, size: 20);
       case TransferStatus.cancelled:
-        return Icon(
-          Icons.cancel,
-          color: theme.colorScheme.outline,
-          size: 20,
-        );
+        return Icon(Icons.cancel, color: theme.colorScheme.outline, size: 20);
     }
   }
 
@@ -98,4 +83,3 @@ class HistoryListItem extends StatelessWidget {
     }
   }
 }
-
