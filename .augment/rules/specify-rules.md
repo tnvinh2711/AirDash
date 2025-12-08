@@ -20,6 +20,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-05
 - Drift (SQLite) for history; File system for received files (009-server-background-isolate)
 - Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `shelf`, `shelf_router`, `bonsoir`, `drift`, `go_router`, `flex_color_scheme` (010-polish-and-fixes)
 - Drift (SQLite) for TransferHistory; File system for received files (010-polish-and-fixes)
+- Markdown (documentation only) + N/A (no code dependencies) (011-readme-update)
 
 - Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (001-project-init)
 
@@ -39,9 +40,9 @@ tests/
 Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel: Follow standard conventions
 
 ## Recent Changes
+- 011-readme-update: Added Markdown (documentation only) + N/A (no code dependencies)
 - 010-polish-and-fixes: Added Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `shelf`, `shelf_router`, `bonsoir`, `drift`, `go_router`, `flex_color_scheme`
 - 009-server-background-isolate: Added Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `shelf`, `shelf_router`, `archive`, `crypto`
-- 008-send-ui: Added Dart 3.0+ with Sound Null Safety (Flutter Stable via FVM) + `flutter_riverpod`, `riverpod_annotation`, `freezed`, `file_picker`, `desktop_drop`, `flex_color_scheme`, `go_router`
 
 
 <!-- MANUAL ADDITIONS START -->
