@@ -3,7 +3,7 @@
 **Feature Branch**: `001-project-init`
 **Created**: 2025-12-05
 **Status**: Draft
-**Input**: User description: "Khởi tạo Project, FVM và Cấu trúc thư mục"
+**Input**: User description: "Initialize Project, FVM and folder Structure"
 
 ## Clarifications
 

@@ -334,10 +334,7 @@ void main() {
           // Wait for the provider to be ready
           async.flushMicrotasks();
 
-          final controller =
-              container.read(discoveryControllerProvider.notifier);
-
-          controller.startScan();
+          container.read(discoveryControllerProvider.notifier).startScan();
           async.flushMicrotasks();
 
           eventController.add(DeviceFoundEvent(createTestDevice()));

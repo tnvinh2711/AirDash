@@ -21,8 +21,9 @@ class DiscoveryController extends _$DiscoveryController {
   StreamSubscription<DiscoveryEvent>? _scanSubscription;
   Timer? _stalenessTimer;
   static const _stalenessCheckInterval = Duration(seconds: 60);
-  // Keep devices visible for 10 minutes - mDNS doesn't send continuous updates,
-  // so we need a long timeout. DeviceLostEvent + grace period handles normal removal.
+  // Keep devices visible for 10 minutes - mDNS doesn't send continuous
+  // updates, so we need a long timeout. DeviceLostEvent + grace period
+  // handles normal removal.
   static const _stalenessTimeout = Duration(minutes: 10);
 
   // US2: Scan timeout timer - sets isScanning=false after timeout

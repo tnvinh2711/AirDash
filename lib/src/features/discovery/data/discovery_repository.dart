@@ -303,7 +303,8 @@ class DiscoveryRepository {
       _parseDeviceAsync(service).then((device) {
         if (device != null) {
           developer.log(
-            'Fallback device parsed: ${device.alias} at ${device.ip}:${device.port}',
+            'Fallback device parsed: ${device.alias} '
+            'at ${device.ip}:${device.port}',
             name: 'DiscoveryRepository',
           );
           controller.add(DeviceFoundEvent(device));

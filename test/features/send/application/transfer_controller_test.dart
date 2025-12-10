@@ -46,16 +46,29 @@ void main() {
       final preparing = TransferState.preparing(currentItem: _createTestItem());
       expect(preparing, isA<TransferStatePreparing>());
 
-      const completed = TransferState.completed(results: []);
+      const completed = TransferState.completed(
+        results: [],
+        targetDeviceAlias: 'test-device',
+      );
       expect(completed, isA<TransferStateCompleted>());
 
-      const failed = TransferState.failed(error: 'test', results: []);
+      const failed = TransferState.failed(
+        error: 'test',
+        results: [],
+        targetDeviceAlias: 'test-device',
+      );
       expect(failed, isA<TransferStateFailed>());
 
-      const cancelled = TransferState.cancelled(results: []);
+      const cancelled = TransferState.cancelled(
+        results: [],
+        targetDeviceAlias: 'test-device',
+      );
       expect(cancelled, isA<TransferStateCancelled>());
 
-      const partialSuccess = TransferState.partialSuccess(results: []);
+      const partialSuccess = TransferState.partialSuccess(
+        results: [],
+        targetDeviceAlias: 'test-device',
+      );
       expect(partialSuccess, isA<TransferStatePartialSuccess>());
     });
   });
