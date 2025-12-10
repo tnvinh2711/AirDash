@@ -19,26 +19,31 @@ sealed class TransferState with _$TransferState {
   const factory TransferState.sending({
     required TransferProgress progress,
     required List<TransferResult> results,
+    required String targetDeviceAlias,
   }) = TransferStateSending;
 
   /// All items succeeded.
   const factory TransferState.completed({
     required List<TransferResult> results,
+    required String targetDeviceAlias,
   }) = TransferStateCompleted;
 
   /// Some items failed.
   const factory TransferState.partialSuccess({
     required List<TransferResult> results,
+    required String targetDeviceAlias,
   }) = TransferStatePartialSuccess;
 
   /// Critical failure (e.g., no network).
   const factory TransferState.failed({
     required String error,
     required List<TransferResult> results,
+    required String targetDeviceAlias,
   }) = TransferStateFailed;
 
   /// User cancelled.
   const factory TransferState.cancelled({
     required List<TransferResult> results,
+    required String targetDeviceAlias,
   }) = TransferStateCancelled;
 }

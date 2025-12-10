@@ -10,6 +10,7 @@ import 'package:flux/src/features/receive/presentation/widgets/identity_card.dar
 import 'package:flux/src/features/receive/presentation/widgets/pending_request_sheet.dart';
 import 'package:flux/src/features/receive/presentation/widgets/quick_save_switch.dart';
 import 'package:flux/src/features/receive/presentation/widgets/server_status_card.dart';
+import 'package:flux/src/features/receive/presentation/widgets/transfer_complete_dialog.dart';
 import 'package:go_router/go_router.dart';
 
 /// The Receive screen - displays content for receiving files from peers.
@@ -33,16 +34,16 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     final serverStateAsync = ref.watch(serverControllerProvider);
 
     // Listen for pending requests and show bottom sheet
-    ref.listen<AsyncValue<ServerState>>(
-      serverControllerProvider,
-      (previous, next) {
-        final pendingRequest = next.valueOrNull?.pendingRequest;
-        _handlePendingRequest(pendingRequest);
+    ref.listen<AsyncValue<ServerState>>(serverControllerProvider, (
+      previous,
+      next,
+    ) {
+      final pendingRequest = next.valueOrNull?.pendingRequest;
+      _handlePendingRequest(pendingRequest);
 
-        // Show toast on transfer completion or failure
-        _handleTransferCompletion(previous, next);
-      },
-    );
+      // Show toast on transfer completion or failure
+      _handleTransferCompletion(previous, next);
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -124,10 +125,8 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     // Check for new completion
     if (nextState?.lastCompleted != null &&
         prevState?.lastCompleted != nextState?.lastCompleted) {
-      showSuccessToast(
-        context,
-        'Received: ${nextState!.lastCompleted!.fileName}',
-      );
+      // Show completion dialog with file actions
+      showTransferCompleteDialog(context, nextState!.lastCompleted!);
     }
 
     // Check for new error (only show if not during transfer)

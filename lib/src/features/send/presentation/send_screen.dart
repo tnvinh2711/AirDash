@@ -9,11 +9,13 @@ import 'package:flux/src/features/discovery/domain/device.dart';
 import 'package:flux/src/features/receive/application/device_identity_provider.dart';
 import 'package:flux/src/features/send/application/file_selection_controller.dart';
 import 'package:flux/src/features/send/application/transfer_controller.dart';
+import 'package:flux/src/features/send/domain/transfer_result.dart';
 import 'package:flux/src/features/send/domain/transfer_state.dart';
 import 'package:flux/src/features/send/presentation/widgets/device_grid.dart';
 import 'package:flux/src/features/send/presentation/widgets/drop_zone_overlay.dart';
 import 'package:flux/src/features/send/presentation/widgets/selection_action_buttons.dart';
 import 'package:flux/src/features/send/presentation/widgets/selection_list.dart';
+import 'package:flux/src/features/send/presentation/widgets/send_complete_dialog.dart';
 
 /// The Send screen - displays content for sending files to peers.
 ///
@@ -102,26 +104,43 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
   void _handleTransferStateChange(TransferState? previous, TransferState next) {
     switch (next) {
-      case TransferStateCompleted(:final results):
-        final successCount = results.where((r) => r.success).length;
-        showSuccessToast(
+      case TransferStateCompleted(:final results, :final targetDeviceAlias):
+        // Show completion dialog with file list
+        showSendCompleteDialog(
           context,
-          'Sent $successCount file${successCount == 1 ? '' : 's'} successfully',
+          results: results,
+          targetDeviceName: targetDeviceAlias,
         );
+        // Clear selection after successful transfer
+        ref.read(fileSelectionControllerProvider.notifier).clear();
       case TransferStateFailed(:final error):
         showErrorToast(context, error);
-      case TransferStatePartialSuccess(:final results):
-        final successCount = results.where((r) => r.success).length;
-        final failCount = results.length - successCount;
-        showInfoToast(
+      case TransferStatePartialSuccess(
+        :final results,
+        :final targetDeviceAlias,
+      ):
+        // Show completion dialog with both success and failed files
+        showSendCompleteDialog(
           context,
-          'Sent $successCount, failed $failCount '
-          "file${failCount == 1 ? '' : 's'}",
+          results: results,
+          targetDeviceName: targetDeviceAlias,
         );
+        // Clear only successful items, keep failed ones for retry
+        _clearSuccessfulItems(results);
       case TransferStateCancelled():
         showInfoToast(context, 'Transfer cancelled');
       default:
         break;
+    }
+  }
+
+  /// Clears only the successfully transferred items from selection.
+  void _clearSuccessfulItems(List<TransferResult> results) {
+    final controller = ref.read(fileSelectionControllerProvider.notifier);
+    for (final result in results) {
+      if (result.success) {
+        controller.removeItem(result.selectedItem.id);
+      }
     }
   }
 

@@ -34,6 +34,7 @@ class HistoryRepository {
       status: entry.status,
       direction: entry.direction,
       remoteDeviceAlias: entry.remoteDeviceAlias,
+      savedPath: Value(entry.savedPath),
     );
 
     return _db.into(_db.transferHistoryTable).insert(companion);
@@ -89,6 +90,7 @@ class HistoryRepository {
       status: row.status,
       direction: row.direction,
       remoteDeviceAlias: row.remoteDeviceAlias,
+      savedPath: row.savedPath,
     );
   }
 }

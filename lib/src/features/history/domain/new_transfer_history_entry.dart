@@ -16,6 +16,7 @@ class NewTransferHistoryEntry {
     required this.status,
     required this.direction,
     required this.remoteDeviceAlias,
+    this.savedPath,
   });
 
   /// UUID identifying the transfer session.
@@ -41,4 +42,10 @@ class NewTransferHistoryEntry {
 
   /// Name of the other device.
   final String remoteDeviceAlias;
+
+  /// Absolute path where the received file was saved.
+  ///
+  /// Should be set for received transfers to enable file open actions.
+  /// Should be `null` for sent transfers.
+  final String? savedPath;
 }

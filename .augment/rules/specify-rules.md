@@ -23,6 +23,8 @@ Auto-generated from all feature plans. Last updated: 2025-12-05
 - Markdown (documentation only) + N/A (no code dependencies) (011-readme-update)
 - Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `bonsoir` (mDNS) (012-device-discovery-fix)
 - N/A (in-memory state only for discovery) (012-device-discovery-fix)
+- Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `drift`, `go_router`, `flex_color_scheme`, `open_file` (NEW - NEEDS RESEARCH) (013-file-open-actions)
+- Drift (SQLite) - existing `TransferHistoryTable`, requires migration to add `savedPath` column (013-file-open-actions)
 
 - Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (001-project-init)
 
@@ -42,9 +44,9 @@ tests/
 Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel: Follow standard conventions
 
 ## Recent Changes
+- 013-file-open-actions: Added Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `drift`, `go_router`, `flex_color_scheme`, `open_file` (NEW - NEEDS RESEARCH)
 - 012-device-discovery-fix: Added Dart 3.0+ (Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `bonsoir` (mDNS)
 - 011-readme-update: Added Markdown (documentation only) + N/A (no code dependencies)
-- 010-polish-and-fixes: Added Dart 3.0+ (Full Sound Null Safety) via Flutter Stable Channel (FVM) + `flutter_riverpod`, `riverpod_generator`, `freezed`, `shelf`, `shelf_router`, `bonsoir`, `drift`, `go_router`, `flex_color_scheme`
 
 
 <!-- MANUAL ADDITIONS START -->

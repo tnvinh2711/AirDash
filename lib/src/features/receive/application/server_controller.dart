@@ -357,6 +357,7 @@ class ServerController extends _$ServerController {
           fileCount: event.fileCount,
           senderAlias: event.senderAlias,
           status: TransferStatus.completed,
+          savedPath: event.savedPath,
         );
         _lastAcceptedRequest = null; // Clear any cached request
       case TransferFailedEvent() && final event:
@@ -394,10 +395,11 @@ class ServerController extends _$ServerController {
     required int fileCount,
     required String senderAlias,
     required TransferStatus status,
+    String? savedPath,
   }) {
     debugPrint(
       '[ServerController] Recording history: '
-      '$fileName from $senderAlias (status: $status)',
+      '$fileName from $senderAlias (status: $status, savedPath: $savedPath)',
     );
     try {
       final repository = ref.read(historyRepositoryProvider);
@@ -414,6 +416,7 @@ class ServerController extends _$ServerController {
         status: status,
         direction: TransferDirection.received,
         remoteDeviceAlias: senderAlias,
+        savedPath: savedPath,
       );
       repository
           .addEntry(entry)

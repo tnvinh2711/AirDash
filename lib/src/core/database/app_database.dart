@@ -20,7 +20,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -29,7 +29,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Future migrations will be handled here
+        // v1 -> v2: Add savedPath column to transfer_history_table
+        if (from < 2) {
+          await m.addColumn(
+            transferHistoryTable,
+            transferHistoryTable.savedPath,
+          );
+        }
       },
     );
   }

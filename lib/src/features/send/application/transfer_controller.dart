@@ -87,6 +87,7 @@ class TransferController extends _$TransferController {
           phase: TransferPhase.handshaking,
         ),
         results: [],
+        targetDeviceAlias: target.alias,
       );
 
       final handshakeResult = await _performHandshake(payload, target);
@@ -98,7 +99,11 @@ class TransferController extends _$TransferController {
           error: errorMessage,
         );
         await _recordHistory(item, target, TransferStatus.failed);
-        state = TransferState.failed(error: result.error!, results: [result]);
+        state = TransferState.failed(
+          error: result.error!,
+          results: [result],
+          targetDeviceAlias: target.alias,
+        );
         return result;
       }
 
@@ -125,11 +130,15 @@ class TransferController extends _$TransferController {
 
       // Update state
       if (uploadResult.success) {
-        state = TransferState.completed(results: [result]);
+        state = TransferState.completed(
+          results: [result],
+          targetDeviceAlias: target.alias,
+        );
       } else {
         state = TransferState.failed(
           error: uploadResult.error ?? 'Upload failed',
           results: [result],
+          targetDeviceAlias: target.alias,
         );
       }
 
@@ -142,7 +151,10 @@ class TransferController extends _$TransferController {
           error: 'Cancelled',
         );
         await _recordHistory(item, target, TransferStatus.cancelled);
-        state = TransferState.cancelled(results: [result]);
+        state = TransferState.cancelled(
+          results: [result],
+          targetDeviceAlias: target.alias,
+        );
         return result;
       }
       rethrow;
@@ -153,7 +165,11 @@ class TransferController extends _$TransferController {
         error: e.toString(),
       );
       await _recordHistory(item, target, TransferStatus.failed);
-      state = TransferState.failed(error: e.toString(), results: [result]);
+      state = TransferState.failed(
+        error: e.toString(),
+        results: [result],
+        targetDeviceAlias: target.alias,
+      );
       return result;
     }
   }
@@ -166,7 +182,10 @@ class TransferController extends _$TransferController {
     required Device target,
   }) async {
     if (items.isEmpty) {
-      state = const TransferState.completed(results: []);
+      state = TransferState.completed(
+        results: const [],
+        targetDeviceAlias: target.alias,
+      );
       return [];
     }
 
@@ -189,7 +208,10 @@ class TransferController extends _$TransferController {
           );
           await _recordHistory(items[j], target, TransferStatus.cancelled);
         }
-        state = TransferState.cancelled(results: results);
+        state = TransferState.cancelled(
+          results: results,
+          targetDeviceAlias: target.alias,
+        );
         return results;
       }
 
@@ -208,6 +230,7 @@ class TransferController extends _$TransferController {
             phase: TransferPhase.handshaking,
           ),
           results: results,
+          targetDeviceAlias: target.alias,
         );
 
         final handshakeResult = await _performHandshake(payload, target);
@@ -263,7 +286,10 @@ class TransferController extends _$TransferController {
             );
             await _recordHistory(items[j], target, TransferStatus.cancelled);
           }
-          state = TransferState.cancelled(results: results);
+          state = TransferState.cancelled(
+            results: results,
+            targetDeviceAlias: target.alias,
+          );
           return results;
         }
         results.add(
@@ -289,14 +315,21 @@ class TransferController extends _$TransferController {
     // Determine final state
     final successCount = results.where((r) => r.success).length;
     if (successCount == results.length) {
-      state = TransferState.completed(results: results);
+      state = TransferState.completed(
+        results: results,
+        targetDeviceAlias: target.alias,
+      );
     } else if (successCount == 0) {
       state = TransferState.failed(
         error: 'All transfers failed',
         results: results,
+        targetDeviceAlias: target.alias,
       );
     } else {
-      state = TransferState.partialSuccess(results: results);
+      state = TransferState.partialSuccess(
+        results: results,
+        targetDeviceAlias: target.alias,
+      );
     }
 
     return results;
@@ -473,6 +506,7 @@ class TransferController extends _$TransferController {
             phase: TransferPhase.uploading,
           ),
           results: previousResults,
+          targetDeviceAlias: target.alias,
         );
       },
       cancelToken: _cancelToken,

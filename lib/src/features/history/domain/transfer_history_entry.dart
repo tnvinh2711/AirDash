@@ -18,6 +18,7 @@ class TransferHistoryEntry {
     required this.status,
     required this.direction,
     required this.remoteDeviceAlias,
+    this.savedPath,
   });
 
   /// Auto-incremented unique record identifier.
@@ -49,4 +50,19 @@ class TransferHistoryEntry {
 
   /// Name of the other device.
   final String remoteDeviceAlias;
+
+  /// Absolute path where the received file was saved.
+  ///
+  /// - `null` for sent transfers (direction == sent)
+  /// - `null` for legacy entries created before schema v2
+  /// - Non-null for received transfers after schema v2
+  final String? savedPath;
+
+  /// Whether this entry supports file open actions.
+  ///
+  /// Returns true only if:
+  /// - This is a received transfer
+  /// - savedPath is not null
+  bool get canOpenFile =>
+      direction == TransferDirection.received && savedPath != null;
 }

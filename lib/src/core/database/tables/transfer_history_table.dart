@@ -61,4 +61,12 @@ class TransferHistoryTable extends Table {
 
   /// Name of the other device.
   TextColumn get remoteDeviceAlias => text()();
+
+  /// Absolute path where received file was saved.
+  ///
+  /// Nullable for backward compatibility with existing entries.
+  /// - `null` for sent transfers (direction == sent)
+  /// - `null` for legacy entries created before schema v2
+  /// - Non-null for received transfers after schema v2
+  TextColumn get savedPath => text().nullable()();
 }

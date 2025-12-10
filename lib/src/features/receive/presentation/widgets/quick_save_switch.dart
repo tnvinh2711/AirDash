@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/features/receive/application/receive_settings_provider.dart';
+import 'package:flux/src/features/receive/application/server_controller.dart';
 
 /// A switch for toggling the Quick Save feature.
 ///
 /// When enabled, received files are automatically saved without
 /// prompting the user for confirmation.
-class QuickSaveSwitch extends ConsumerWidget {
+///
+/// Changing this setting restarts the server to apply the new configuration.
+class QuickSaveSwitch extends ConsumerStatefulWidget {
   /// Creates a [QuickSaveSwitch] widget.
   const QuickSaveSwitch({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QuickSaveSwitch> createState() => _QuickSaveSwitchState();
+}
+
+class _QuickSaveSwitchState extends ConsumerState<QuickSaveSwitch> {
+  bool _isToggling = false;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final settingsAsync = ref.watch(receiveSettingsNotifierProvider);
 
     final isEnabled = settingsAsync.valueOrNull?.quickSaveEnabled ?? false;
-    final isLoading = settingsAsync.isLoading;
+    final isLoading = settingsAsync.isLoading || _isToggling;
 
     return Card(
       child: Padding(
@@ -67,7 +77,7 @@ class QuickSaveSwitch extends ConsumerWidget {
             else
               Switch(
                 value: isEnabled,
-                onChanged: (value) => _onToggle(ref, value),
+                onChanged: _onToggle,
               ),
           ],
         ),
@@ -75,9 +85,27 @@ class QuickSaveSwitch extends ConsumerWidget {
     );
   }
 
-  Future<void> _onToggle(WidgetRef ref, bool enabled) async {
-    await ref
-        .read(receiveSettingsNotifierProvider.notifier)
-        .setQuickSave(enabled: enabled);
+  Future<void> _onToggle(bool enabled) async {
+    setState(() => _isToggling = true);
+
+    try {
+      // Update setting in database
+      await ref
+          .read(receiveSettingsNotifierProvider.notifier)
+          .setQuickSave(enabled: enabled);
+
+      // Restart server with new config to apply changes
+      final serverController = ref.read(serverControllerProvider.notifier);
+      final serverState = ref.read(serverControllerProvider).valueOrNull;
+
+      if (serverState?.isRunning ?? false) {
+        await serverController.stopServer();
+        await serverController.startServer(quickSaveEnabled: enabled);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isToggling = false);
+      }
+    }
   }
 }

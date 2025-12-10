@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/core/providers/file_open_result.dart';
+import 'package:flux/src/core/providers/file_open_service_provider.dart';
 import 'package:flux/src/features/history/domain/transfer_direction.dart';
 import 'package:flux/src/features/history/domain/transfer_history_entry.dart';
 import 'package:flux/src/features/history/domain/transfer_status.dart';
@@ -6,7 +9,9 @@ import 'package:flux/src/features/history/domain/transfer_status.dart';
 /// A list item displaying a single transfer history entry.
 ///
 /// Shows direction icon, file name, device name, timestamp, and status.
-class HistoryListItem extends StatelessWidget {
+/// Tappable entries (received with savedPath) can open the file.
+/// Long-press shows context menu with "Open File" and "Show in Folder" options.
+class HistoryListItem extends ConsumerWidget {
   /// Creates a [HistoryListItem] widget.
   const HistoryListItem({required this.entry, super.key});
 
@@ -14,8 +19,9 @@ class HistoryListItem extends StatelessWidget {
   final TransferHistoryEntry entry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final canOpen = entry.canOpenFile;
 
     return ListTile(
       leading: _buildDirectionIcon(theme),
@@ -26,7 +32,93 @@ class HistoryListItem extends StatelessWidget {
           color: theme.colorScheme.outline,
         ),
       ),
-      trailing: _buildStatusIcon(theme),
+      trailing: _buildTrailing(theme, canOpen),
+      onTap: canOpen ? () => _handleTap(context, ref) : null,
+      onLongPress: canOpen ? () => _showContextMenu(context, ref) : null,
+    );
+  }
+
+  /// Builds the trailing widget with status and open indicator.
+  Widget _buildTrailing(ThemeData theme, bool canOpen) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildStatusIcon(theme),
+        if (canOpen) ...[
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right, color: theme.colorScheme.outline, size: 20),
+        ],
+      ],
+    );
+  }
+
+  /// Handles tap on a tappable history entry.
+  Future<void> _handleTap(BuildContext context, WidgetRef ref) async {
+    final fileOpenService = ref.read(fileOpenServiceProvider);
+    final result = await fileOpenService.openFile(entry.savedPath!);
+
+    if (!context.mounted) return;
+
+    if (result.isFailure) {
+      _showErrorSnackbar(context, result);
+    }
+  }
+
+  /// Shows context menu with file actions.
+  void _showContextMenu(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                Icons.open_in_new,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Open File'),
+              onTap: () {
+                Navigator.pop(context);
+                _handleTap(context, ref);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.folder_open,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Show in Folder'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _handleShowInFolder(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Handles "Show in Folder" action.
+  Future<void> _handleShowInFolder(BuildContext context, WidgetRef ref) async {
+    final fileOpenService = ref.read(fileOpenServiceProvider);
+    final result = await fileOpenService.showInFolder(entry.savedPath!);
+
+    if (!context.mounted) return;
+
+    if (result.isFailure) {
+      _showErrorSnackbar(context, result);
+    }
+  }
+
+  /// Shows error snackbar for file open failures.
+  void _showErrorSnackbar(BuildContext context, FileOpenResult result) {
+    final message = result.errorMessage ?? 'An error occurred';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
