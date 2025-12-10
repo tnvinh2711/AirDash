@@ -43,9 +43,9 @@ class _FluxAppState extends ConsumerState<FluxApp> {
       title: 'FLUX',
       debugShowCheckedModeBanner: false,
       // FlexColorScheme light theme with Material 3
-      theme: FlexThemeData.light(scheme: FlexScheme.blueWhale),
+      theme: FlexThemeData.light(scheme: FlexScheme.barossa),
       // FlexColorScheme dark theme with Material 3
-      darkTheme: FlexThemeData.dark(scheme: FlexScheme.blueWhale),
+      darkTheme: FlexThemeData.dark(scheme: FlexScheme.barossa),
       // go_router configuration
       routerConfig: appRouter,
     );

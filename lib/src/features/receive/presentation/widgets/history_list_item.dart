@@ -67,10 +67,12 @@ class HistoryListItem extends ConsumerWidget {
   /// Shows context menu with file actions.
   void _showContextMenu(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // Capture the parent context before showing the bottom sheet
+    final parentContext = context;
 
     showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -81,8 +83,9 @@ class HistoryListItem extends ConsumerWidget {
               ),
               title: const Text('Open File'),
               onTap: () {
-                Navigator.pop(context);
-                _handleTap(context, ref);
+                Navigator.pop(sheetContext);
+                // Use the parent context, not the sheet context
+                _handleTap(parentContext, ref);
               },
             ),
             ListTile(
@@ -92,8 +95,9 @@ class HistoryListItem extends ConsumerWidget {
               ),
               title: const Text('Show in Folder'),
               onTap: () async {
-                Navigator.pop(context);
-                await _handleShowInFolder(context, ref);
+                Navigator.pop(sheetContext);
+                // Use the parent context, not the sheet context
+                await _handleShowInFolder(parentContext, ref);
               },
             ),
           ],

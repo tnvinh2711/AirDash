@@ -91,6 +91,9 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
   }
 
   void _handlePendingRequest(IncomingRequestEvent? request) {
+    // Don't access context if widget is no longer mounted
+    if (!mounted) return;
+
     if (request == null) {
       // Request was cleared (accepted/declined)
       _shownRequestId = null;
@@ -101,17 +104,21 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     if (_shownRequestId == request.requestId) return;
     _shownRequestId = request.requestId;
 
-    // Show bottom sheet
-    showModalBottomSheet<void>(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => PendingRequestSheet(request: request),
-    ).then((_) {
-      // Reset when sheet is closed
-      _shownRequestId = null;
+    // Schedule after current frame to ensure context is stable
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Show bottom sheet
+      showModalBottomSheet<void>(
+        context: context,
+        isDismissible: false,
+        enableDrag: false,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => PendingRequestSheet(request: request),
+      ).then((_) {
+        // Reset when sheet is closed
+        _shownRequestId = null;
+      });
     });
   }
 
@@ -119,21 +126,31 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     AsyncValue<ServerState>? previous,
     AsyncValue<ServerState> next,
   ) {
+    // Don't access context if widget is no longer mounted
+    if (!mounted) return;
+
     final prevState = previous?.valueOrNull;
     final nextState = next.valueOrNull;
 
     // Check for new completion
     if (nextState?.lastCompleted != null &&
         prevState?.lastCompleted != nextState?.lastCompleted) {
-      // Show completion dialog with file actions
-      showTransferCompleteDialog(context, nextState!.lastCompleted!);
+      // Schedule after current frame to ensure context is stable
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showTransferCompleteDialog(context, nextState!.lastCompleted!);
+      });
     }
 
     // Check for new error (only show if not during transfer)
     if (nextState?.error != null &&
         prevState?.error != nextState?.error &&
         !nextState!.isReceiving) {
-      showErrorToast(context, nextState.error!);
+      // Schedule after current frame to ensure context is stable
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showErrorToast(context, nextState.error!);
+      });
     }
   }
 
