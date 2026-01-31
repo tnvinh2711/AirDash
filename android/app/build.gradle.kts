@@ -5,13 +5,6 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Load keystore properties from key.properties file
-val keystorePropertiesFile = rootProject.file("key.properties")
-val keystoreProperties = java.util.Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
-}
-
 android {
     namespace = "com.flux.flux"
     compileSdk = flutter.compileSdkVersion
@@ -39,30 +32,23 @@ android {
 
     signingConfigs {
         create("release") {
-            // Check if running on Codemagic CI
+            // Only use release signing on Codemagic CI
             if (System.getenv("CI") != null) {
                 // Codemagic CI environment variables
                 keyAlias = System.getenv("FCI_KEY_ALIAS")
                 keyPassword = System.getenv("FCI_KEY_PASSWORD")
                 storeFile = file(System.getenv("FCI_KEYSTORE_PATH"))
                 storePassword = System.getenv("FCI_KEYSTORE_PASSWORD")
-            } else if (keystorePropertiesFile.exists()) {
-                // Local build with key.properties file
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
             }
         }
     }
 
     buildTypes {
         release {
-            // Use release signing if on CI or if key.properties exists
-            signingConfig = if (System.getenv("CI") != null || keystorePropertiesFile.exists()) {
+            // Use release signing only on CI, otherwise use debug keystore for local builds
+            signingConfig = if (System.getenv("CI") != null) {
                 signingConfigs.getByName("release")
             } else {
-                // Fallback to debug signing for local development without keystore
                 signingConfigs.getByName("debug")
             }
         }
