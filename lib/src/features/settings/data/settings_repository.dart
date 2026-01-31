@@ -130,6 +130,34 @@ class SettingsRepository {
     // Delete by setting to empty string (or we could add a delete method)
     await setSetting(SettingKeys.selectionQueue, '[]');
   }
+
+  // ============================================================
+  // Color Scheme Settings
+  // ============================================================
+
+  /// Gets the selected color scheme.
+  ///
+  /// Returns `null` if not set (use default scheme).
+  Future<String?> getColorScheme() => getSetting(SettingKeys.colorScheme);
+
+  /// Sets the color scheme.
+  ///
+  /// [scheme] should be a valid FlexScheme name.
+  Future<void> setColorScheme(String scheme) =>
+      setSetting(SettingKeys.colorScheme, scheme);
+
+  // ============================================================
+  // Download Path Settings
+  // ============================================================
+
+  /// Gets the custom download path.
+  ///
+  /// Returns `null` if not set (use default Downloads folder).
+  Future<String?> getDownloadPath() => getSetting(SettingKeys.downloadPath);
+
+  /// Sets the custom download path.
+  Future<void> setDownloadPath(String path) =>
+      setSetting(SettingKeys.downloadPath, path);
 }
 
 // ============================================================
@@ -155,6 +183,12 @@ abstract final class SettingKeys {
 
   /// Selection queue persistence key (JSON array).
   static const String selectionQueue = 'selection_queue';
+
+  /// Color scheme key.
+  static const String colorScheme = 'color_scheme';
+
+  /// Download path key.
+  static const String downloadPath = 'download_path';
 }
 
 // ============================================================

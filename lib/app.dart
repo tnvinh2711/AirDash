@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/core/providers/permission_provider.dart';
 import 'package:flux/src/core/routing/app_router.dart';
+import 'package:flux/src/features/settings/application/settings_controller.dart';
 
 /// The root widget for the FLUX application.
 ///
@@ -39,15 +40,35 @@ class _FluxAppState extends ConsumerState<FluxApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'FLUX',
-      debugShowCheckedModeBanner: false,
-      // FlexColorScheme light theme with Material 3
-      theme: FlexThemeData.light(scheme: FlexScheme.barossa),
-      // FlexColorScheme dark theme with Material 3
-      darkTheme: FlexThemeData.dark(scheme: FlexScheme.barossa),
-      // go_router configuration
-      routerConfig: appRouter,
+    final settingsAsync = ref.watch(settingsControllerProvider);
+
+    return settingsAsync.when(
+      data: (settings) => MaterialApp.router(
+        title: 'FLUX',
+        debugShowCheckedModeBanner: false,
+        // FlexColorScheme light theme with Material 3
+        theme: FlexThemeData.light(scheme: settings.colorScheme),
+        // FlexColorScheme dark theme with Material 3
+        darkTheme: FlexThemeData.dark(scheme: settings.colorScheme),
+        // Theme mode from settings
+        themeMode: settings.themeMode,
+        // go_router configuration
+        routerConfig: appRouter,
+      ),
+      loading: () => const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      ),
+      error: (_, __) => MaterialApp.router(
+        title: 'FLUX',
+        debugShowCheckedModeBanner: false,
+        theme: FlexThemeData.light(scheme: FlexScheme.barossa),
+        darkTheme: FlexThemeData.dark(scheme: FlexScheme.barossa),
+        routerConfig: appRouter,
+      ),
     );
   }
 }

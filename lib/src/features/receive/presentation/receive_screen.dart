@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flux/src/core/routing/routes.dart';
+import 'package:flux/src/core/widgets/circular_progress_card.dart';
+import 'package:flux/src/core/widgets/elevated_card.dart';
+import 'package:flux/src/core/widgets/glow_avatar.dart';
+import 'package:flux/src/core/widgets/gradient_container.dart';
 import 'package:flux/src/core/widgets/toast_helper.dart';
 import 'package:flux/src/core/widgets/transfer_status_bar.dart';
+import 'package:flux/src/features/receive/application/device_identity_provider.dart';
+import 'package:flux/src/features/receive/application/receive_settings_provider.dart';
 import 'package:flux/src/features/receive/application/server_controller.dart';
 import 'package:flux/src/features/receive/domain/isolate_event.dart';
 import 'package:flux/src/features/receive/domain/server_state.dart';
-import 'package:flux/src/features/receive/presentation/widgets/identity_card.dart';
 import 'package:flux/src/features/receive/presentation/widgets/pending_request_sheet.dart';
-import 'package:flux/src/features/receive/presentation/widgets/quick_save_switch.dart';
-import 'package:flux/src/features/receive/presentation/widgets/server_status_card.dart';
 import 'package:flux/src/features/receive/presentation/widgets/transfer_complete_dialog.dart';
 import 'package:go_router/go_router.dart';
 
@@ -45,10 +48,14 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
       _handleTransferCompletion(previous, next);
     });
 
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Receive'),
         centerTitle: true,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -156,119 +163,163 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
 
   Widget _buildContent(BuildContext context, ServerState state) {
     final theme = Theme.of(context);
+    final identityAsync = ref.watch(deviceIdentityProvider);
+    final settingsAsync = ref.watch(receiveSettingsNotifierProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Identity Card with pulsing avatar
-          IdentityCard(isReceiving: state.isRunning),
-          const SizedBox(height: 32),
-
-          // Server Status (read-only, auto-started)
-          const ServerStatusCard(),
-          const SizedBox(height: 16),
-
-          // Quick Save Switch
-          const QuickSaveSwitch(),
-
-          // Transfer progress
-          if (state.isReceiving && state.transferProgress != null) ...[
-            const SizedBox(height: 24),
-            _buildProgressIndicator(context, state),
-          ],
-
-          // Error message
-          if (state.error != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.warning_amber,
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      state.error!,
-                      style: TextStyle(
-                        color: theme.colorScheme.onErrorContainer,
+          // Hero section with gradient background (full width)
+          HeroGradientSection(
+            height: 280,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Glow avatar
+                    identityAsync.when(
+                      data: (identity) => GlowAvatar(
+                        icon: Icons.phone_android,
+                        isActive: state.isRunning,
+                        size: 140,
                       ),
+                      loading: () => const CircularProgressIndicator(),
+                      error: (_, __) => const Icon(Icons.error, size: 140),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    // Device name
+                    identityAsync.when(
+                      data: (identity) => Text(
+                        identity.alias,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // IP Address
+                    identityAsync.when(
+                      data: (identity) => Text(
+                        identity.ipAddress ?? 'No IP',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
+
+          // Status chips section (centered with max width)
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    StatusChip(
+                      icon: state.isRunning ? Icons.check_circle : Icons.cancel,
+                      label: state.isRunning ? 'Online' : 'Offline',
+                      color: state.isRunning
+                          ? theme.colorScheme.primaryContainer
+                          : theme.colorScheme.errorContainer,
+                    ),
+                    settingsAsync.when(
+                      data: (settings) => StatusChip(
+                        icon: settings.quickSaveEnabled
+                            ? Icons.flash_on
+                            : Icons.flash_off,
+                        label: settings.quickSaveEnabled
+                            ? 'Quick Save ON'
+                            : 'Quick Save OFF',
+                        onTap: () => ref
+                            .read(receiveSettingsNotifierProvider.notifier)
+                            .toggleQuickSave(),
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Transfer progress card (centered with max width)
+          if (state.isReceiving && state.transferProgress != null)
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _buildProgressCard(context, state),
+                ),
+              ),
+            ),
+
+          // Error message (centered with max width)
+          if (state.error != null)
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: ElevatedCard(
+                    color: theme.colorScheme.errorContainer,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber,
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            state.error!,
+                            style: TextStyle(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 80), // Space for status bar
         ],
       ),
     );
   }
 
-  Widget _buildProgressIndicator(BuildContext context, ServerState state) {
+  Widget _buildProgressCard(BuildContext context, ServerState state) {
     final progress = state.transferProgress!;
     final session = state.activeSession;
-    final theme = Theme.of(context);
 
-    return Column(
-      children: [
-        // Sender info
-        if (session != null) ...[
-          Text(
-            'From: ${session.metadata.senderAlias}',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // File name
-          Text(
-            session.metadata.fileName,
-            style: theme.textTheme.titleMedium,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-        const SizedBox(height: 12),
-
-        // Progress bar
-        LinearProgressIndicator(
-          value: progress.percentComplete / 100,
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        const SizedBox(height: 8),
-
-        // Progress text
-        Text(
-          '${progress.percentComplete}% - ${_formatBytes(progress.bytesReceived)} / ${_formatBytes(progress.totalBytes)}',
-          style: theme.textTheme.bodySmall,
-        ),
-
-        // Transfer speed
-        if (progress.bytesPerSecond > 0)
-          Text(
-            '${_formatBytes(progress.bytesPerSecond.round())}/s',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
-      ],
+    return CircularProgressCard(
+      progress: progress.percentComplete / 100,
+      title: session?.metadata.fileName ?? 'Receiving...',
+      subtitle:
+          session != null ? 'From: ${session.metadata.senderAlias}' : null,
+      bytesTransferred: progress.bytesReceived,
+      totalBytes: progress.totalBytes,
+      speed: progress.bytesPerSecond,
     );
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flux/src/core/widgets/elevated_card.dart';
 import 'package:flux/src/features/discovery/application/discovery_controller.dart';
 import 'package:flux/src/features/discovery/domain/device.dart';
 import 'package:flux/src/features/discovery/domain/device_type.dart';
@@ -153,7 +154,7 @@ class DeviceGrid extends ConsumerWidget {
   }
 }
 
-/// A list tile displaying a discovered device.
+/// A list tile displaying a discovered device with elevated card design.
 class _DeviceListTile extends StatelessWidget {
   const _DeviceListTile({
     required this.device,
@@ -169,27 +170,92 @@ class _DeviceListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        enabled: isEnabled,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ElevatedCard(
         onTap: isEnabled ? onTap : null,
-        leading: _buildDeviceIcon(theme),
-        title: Text(
-          device.alias,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          '${device.os} • ${device.ip}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.outline,
+        elevation: 3,
+        hoverElevation: 8,
+        child: Opacity(
+          opacity: isEnabled ? 1.0 : 0.5,
+          child: Row(
+            children: [
+              // Device icon with gradient background
+              _buildDeviceIcon(theme),
+              const SizedBox(width: 16),
+
+              // Device info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.alias,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.computer,
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            device.os,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.wifi,
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          device.ip,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Send button
+              if (isEnabled)
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.send,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+            ],
           ),
         ),
-        trailing: isEnabled
-            ? Icon(Icons.send, color: theme.colorScheme.primary)
-            : null,
       ),
     );
   }
@@ -204,16 +270,23 @@ class _DeviceListTile extends StatelessWidget {
     };
 
     return Container(
-      width: 44,
-      height: 44,
+      width: 56,
+      height: 56,
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.secondary,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Icon(
         icon,
-        size: 24,
-        color: theme.colorScheme.onPrimaryContainer,
+        size: 28,
+        color: theme.colorScheme.onPrimary,
       ),
     );
   }

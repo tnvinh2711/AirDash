@@ -6,38 +6,84 @@ import 'package:flux/src/features/send/application/file_selection_controller.dar
 ///
 /// Displays a row of buttons that trigger the corresponding picker
 /// in the [FileSelectionController].
-class SelectionActionButtons extends ConsumerWidget {
+class SelectionActionButtons extends ConsumerStatefulWidget {
   /// Creates a [SelectionActionButtons] widget.
   const SelectionActionButtons({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SelectionActionButtons> createState() =>
+      _SelectionActionButtonsState();
+}
+
+class _SelectionActionButtonsState
+    extends ConsumerState<SelectionActionButtons>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final buttons = [
+      (Icons.insert_drive_file_outlined, 'File', () => _pickFiles(ref)),
+      (Icons.folder_outlined, 'Folder', () => _pickFolder(ref)),
+      (
+        Icons.text_snippet_outlined,
+        'Text',
+        () => _showTextDialog(context, ref)
+      ),
+      (Icons.photo_library_outlined, 'Media', () => _pickMedia(ref)),
+    ];
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       alignment: WrapAlignment.center,
-      children: [
-        _ActionButton(
-          icon: Icons.insert_drive_file_outlined,
-          label: 'File',
-          onPressed: () => _pickFiles(ref),
-        ),
-        _ActionButton(
-          icon: Icons.folder_outlined,
-          label: 'Folder',
-          onPressed: () => _pickFolder(ref),
-        ),
-        _ActionButton(
-          icon: Icons.text_snippet_outlined,
-          label: 'Text',
-          onPressed: () => _showTextDialog(context, ref),
-        ),
-        _ActionButton(
-          icon: Icons.photo_library_outlined,
-          label: 'Media',
-          onPressed: () => _pickMedia(ref),
-        ),
-      ],
+      children: List.generate(buttons.length, (index) {
+        final (icon, label, onPressed) = buttons[index];
+        // Staggered animation: each button starts 100ms after the previous
+        final delay = index * 0.1;
+        final animation = CurvedAnimation(
+          parent: _controller,
+          curve: Interval(
+            delay,
+            delay + 0.4,
+            curve: Curves.easeOutBack,
+          ),
+        );
+
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: animation.value,
+              child: Opacity(
+                opacity: animation.value.clamp(0.0, 1.0),
+                child: child,
+              ),
+            );
+          },
+          child: _ActionButton(
+            icon: icon,
+            label: label,
+            onPressed: onPressed,
+          ),
+        );
+      }),
     );
   }
 

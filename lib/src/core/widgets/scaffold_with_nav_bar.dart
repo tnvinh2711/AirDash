@@ -27,17 +27,15 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < _kNavigationBreakpoint) {
-          // Mobile layout: bottom NavigationBar
-          return _buildMobileLayout();
-        } else {
-          // Desktop layout: side NavigationRail
-          return _buildDesktopLayout();
-        }
-      },
-    );
+    final width = MediaQuery.of(context).size.width;
+
+    if (width < _kNavigationBreakpoint) {
+      // Mobile layout: bottom NavigationBar
+      return _buildMobileLayout();
+    } else {
+      // Desktop layout: side NavigationRail
+      return _buildDesktopLayout();
+    }
   }
 
   /// Builds the mobile layout with a bottom NavigationBar.

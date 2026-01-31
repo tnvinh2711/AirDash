@@ -71,7 +71,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             defaultTargetPlatform == TargetPlatform.windows ||
             defaultTargetPlatform == TargetPlatform.linux);
 
-    var body = _buildBody(isSelectionEmpty);
+    var body = _buildBody(context, isSelectionEmpty);
 
     // Wrap with DropTarget on desktop
     if (isDesktop) {
@@ -144,7 +144,45 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     }
   }
 
-  Widget _buildBody(bool isSelectionEmpty) {
+  Widget _buildBody(BuildContext context, bool isSelectionEmpty) {
+    // Use MediaQuery instead of LayoutBuilder to avoid mutation conflicts
+    final width = MediaQuery.of(context).size.width;
+    final isWideScreen = width > 800;
+
+    if (isWideScreen) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left side: Selection
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SelectionActionButtons(),
+                  const SizedBox(height: 16),
+                  const Expanded(child: SelectionList()),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+
+            // Right side: Devices
+            Expanded(
+              flex: 3,
+              child: DeviceGrid(
+                isSelectionEmpty: isSelectionEmpty,
+                onDeviceTap: _onDeviceTap,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mobile/narrow layout
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(

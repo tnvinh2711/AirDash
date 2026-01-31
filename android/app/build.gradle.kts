@@ -5,6 +5,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Load keystore properties from key.properties file
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.flux.flux"
     compileSdk = flutter.compileSdkVersion
@@ -30,11 +37,34 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Check if running on Codemagic CI
+            if (System.getenv("CI") != null) {
+                // Codemagic CI environment variables
+                keyAlias = System.getenv("FCI_KEY_ALIAS")
+                keyPassword = System.getenv("FCI_KEY_PASSWORD")
+                storeFile = file(System.getenv("FCI_KEYSTORE_PATH"))
+                storePassword = System.getenv("FCI_KEYSTORE_PASSWORD")
+            } else if (keystorePropertiesFile.exists()) {
+                // Local build with key.properties file
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use release signing if on CI or if key.properties exists
+            signingConfig = if (System.getenv("CI") != null || keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                // Fallback to debug signing for local development without keystore
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

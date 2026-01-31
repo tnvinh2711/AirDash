@@ -1,0 +1,101 @@
+workflows:
+  android-release:
+    name: Android Release Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        # Add your environment variable group here
+        # This group should contain:
+        # - FCI_KEYSTORE_PASSWORD
+        # - FCI_KEY_PASSWORD
+        # - FCI_KEY_ALIAS (default: flux-upload-key)
+        - keystore_credentials
+      vars:
+        PACKAGE_NAME: "com.flux.flux"
+    scripts:
+      - name: Set up local.properties
+        script: |
+          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
+      
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      
+      - name: Build Android App Bundle
+        script: |
+          flutter build appbundle --release
+    
+    artifacts:
+      - build/app/outputs/bundle/release/app-release.aab
+      - build/app/outputs/mapping/release/mapping.txt
+    
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
+        notify:
+          success: true
+          failure: true
+      
+      # Uncomment to publish to Google Play Store automatically
+      # google_play:
+      #   credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+      #   track: internal
+      #   submit_as_draft: true
+
+  ios-release:
+    name: iOS Release Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        # Add your iOS signing credentials group here
+        - ios_credentials
+      vars:
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+        BUNDLE_ID: "com.flux.flux"
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      
+      - name: Install pods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      
+      - name: Build iOS
+        script: |
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+    
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
+        notify:
+          success: true
+          failure: true
+      
+      # Uncomment to publish to App Store Connect automatically
+      # app_store_connect:
+      #   api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+      #   key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+      #   issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+      #   submit_to_testflight: true
+
