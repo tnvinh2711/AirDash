@@ -11,10 +11,7 @@
         android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29"/>
-    <!-- Required for Android 13+ to read media files (images, videos, audio) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <!-- Note: READ_MEDIA_* permissions NOT needed - file_picker uses SAF -->
 
     <application
         android:label="Flux"

@@ -1,0 +1,39 @@
+# Configuration for flutter_launcher_icons package
+# Run: flutter pub run flutter_launcher_icons
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "logo.png"
+  min_sdk_android: 21
+  
+  # Web configuration
+  web:
+    generate: true
+    image_path: "logo.png"
+    background_color: "#ffffff"
+    theme_color: "#2196F3"
+  
+  # Windows configuration
+  windows:
+    generate: true
+    image_path: "logo.png"
+    icon_size: 48
+  
+  # macOS configuration
+  macos:
+    generate: true
+    image_path: "logo.png"
+  
+  # Linux configuration  
+  linux:
+    generate: true
+    image_path: "logo.png"
+  
+  # Remove old launcher icons
+  remove_alpha_ios: true
+  
+  # Android adaptive icon configuration
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "logo.png"
+
