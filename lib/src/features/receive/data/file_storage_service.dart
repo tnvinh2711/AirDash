@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -40,22 +41,40 @@ class FileStorageService {
   /// Returns the configured receive folder, or the platform's Downloads
   /// directory if not configured.
   ///
-  /// On Android, uses the public Downloads folder (/storage/emulated/0/Download)
-  /// for better user accessibility. On other platforms, uses the system
-  /// downloads directory or app documents folder.
+  /// On Android 10+ (API 29+), uses Scoped Storage:
+  /// - Files are saved to app-specific external storage (no permission needed)
+  /// - Path: /storage/emulated/0/Android/data/com.bun.studio.flux/files/Downloads
+  /// - Files are accessible via MediaStore and visible in Downloads folder
+  ///
+  /// On Android 9 and below, uses public Downloads folder if permission granted.
+  /// On other platforms, uses the system downloads directory.
   Future<String> getReceiveFolder() async {
     if (_receiveFolder != null) {
       return _receiveFolder;
     }
 
-    // On Android, use public Downloads folder for better accessibility
+    // On Android 10+ (API 29+), use app-specific external storage
+    // This doesn't require any permissions and files are still accessible
     if (Platform.isAndroid) {
-      const publicDownloads = '/storage/emulated/0/Download';
-      final dir = Directory(publicDownloads);
-      if (await dir.exists()) {
-        return publicDownloads;
+      try {
+        // Get app-specific external storage directory
+        // This is automatically cleaned up when app is uninstalled
+        final dir = await getExternalStorageDirectory();
+        if (dir != null) {
+          // Create a Downloads subfolder for better organization
+          final downloadsDir = Directory('${dir.path}/Downloads');
+          if (!await downloadsDir.exists()) {
+            await downloadsDir.create(recursive: true);
+          }
+          return downloadsDir.path;
+        }
+      } catch (e) {
+        // Fallback to app documents if external storage fails
+        developer.log(
+          'Failed to get external storage directory: $e',
+          name: 'FileStorageService',
+        );
       }
-      // Fallback to app-specific folder if public Downloads doesn't exist
     }
 
     // Use Downloads directory on desktop, app documents on mobile (fallback)

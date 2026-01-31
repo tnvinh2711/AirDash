@@ -26,11 +26,11 @@ enum PermissionResult {
 
 /// Controller for handling storage permissions.
 ///
-/// Handles different Android versions:
-/// - Android 9 and below: No runtime permission needed for app-specific storage
-/// - Android 10 (API 29): Uses legacy storage with requestLegacyExternalStorage
-/// - Android 11+ (API 30+): Requires MANAGE_EXTERNAL_STORAGE for broad
-///   file access
+/// Handles different Android versions using Scoped Storage:
+/// - Android 9 and below: Uses READ/WRITE_EXTERNAL_STORAGE
+/// - Android 10-12 (API 29-32): Uses Scoped Storage with legacy fallback
+/// - Android 13+ (API 33+): Uses READ_MEDIA_* permissions for specific media types
+/// - No MANAGE_EXTERNAL_STORAGE needed - uses MediaStore API and SAF
 @riverpod
 class PermissionController extends _$PermissionController {
   /// Completer for ongoing permission request to prevent concurrent requests.
@@ -61,6 +61,8 @@ class PermissionController extends _$PermissionController {
   /// Checks the current storage permission status.
   ///
   /// Returns [PermissionResult.notRequired] on non-Android platforms.
+  /// For Android 10+ (API 29+), uses Scoped Storage which doesn't require
+  /// runtime permissions for app-specific directories and MediaStore.
   Future<PermissionResult> checkStoragePermission() async {
     if (!Platform.isAndroid) {
       developer.log(
@@ -78,28 +80,29 @@ class PermissionController extends _$PermissionController {
         name: 'PermissionController',
       );
 
-      PermissionStatus status;
-
-      if (sdkVersion >= 30) {
-        // Android 11+ (API 30+): Need MANAGE_EXTERNAL_STORAGE
-        status = await Permission.manageExternalStorage.status;
+      // Android 10+ (API 29+): Scoped Storage - no permission needed
+      // We use MediaStore API for Downloads and SAF for user file selection
+      if (sdkVersion >= 29) {
         developer.log(
-          'manageExternalStorage status: $status',
+          'Android 10+ detected - using Scoped Storage (no permission needed)',
           name: 'PermissionController',
         );
-      } else if (sdkVersion >= 23) {
-        // Android 6-10 (API 23-29): Use regular storage permission
-        status = await Permission.storage.status;
-        developer.log('storage status: $status', name: 'PermissionController');
-      } else {
-        // Android 5 and below: No runtime permission needed
         state = PermissionResult.notRequired;
         return PermissionResult.notRequired;
       }
 
-      final result = _mapStatus(status);
-      state = result;
-      return result;
+      // Android 6-9 (API 23-28): Need READ/WRITE_EXTERNAL_STORAGE
+      if (sdkVersion >= 23) {
+        final status = await Permission.storage.status;
+        developer.log('storage status: $status', name: 'PermissionController');
+        final result = _mapStatus(status);
+        state = result;
+        return result;
+      }
+
+      // Android 5 and below: No runtime permission needed
+      state = PermissionResult.notRequired;
+      return PermissionResult.notRequired;
     } catch (e) {
       developer.log(
         'Error checking storage permission: $e',
@@ -112,8 +115,9 @@ class PermissionController extends _$PermissionController {
 
   /// Requests storage permission from the user.
   ///
-  /// On Android 11+, this opens the system settings for MANAGE_EXTERNAL_STORAGE
-  /// since it cannot be granted via a normal permission dialog.
+  /// For Android 10+ (API 29+), returns [PermissionResult.notRequired] since
+  /// Scoped Storage doesn't need runtime permissions.
+  /// For Android 6-9, requests READ/WRITE_EXTERNAL_STORAGE permission.
   ///
   /// This method is safe to call concurrently - subsequent calls will wait
   /// for the first request to complete and return the same result.
@@ -161,43 +165,31 @@ class PermissionController extends _$PermissionController {
       name: 'PermissionController',
     );
 
-    PermissionStatus status;
-
-    if (sdkVersion >= 30) {
-      // Android 11+ (API 30+): Need MANAGE_EXTERNAL_STORAGE
-      // First check if already granted
-      status = await Permission.manageExternalStorage.status;
-      if (status.isGranted) {
-        developer.log(
-          'manageExternalStorage already granted',
-          name: 'PermissionController',
-        );
-        state = PermissionResult.granted;
-        return PermissionResult.granted;
-      }
-
-      // Request the permission - this opens a special settings page
-      status = await Permission.manageExternalStorage.request();
+    // Android 10+ (API 29+): Scoped Storage - no permission needed
+    if (sdkVersion >= 29) {
       developer.log(
-        'manageExternalStorage request result: $status',
+        'Android 10+ detected - using Scoped Storage (no permission needed)',
         name: 'PermissionController',
       );
-    } else if (sdkVersion >= 23) {
-      // Android 6-10 (API 23-29): Use regular storage permission
-      status = await Permission.storage.request();
-      developer.log(
-        'storage request result: $status',
-        name: 'PermissionController',
-      );
-    } else {
-      // Android 5 and below: No runtime permission needed
       state = PermissionResult.notRequired;
       return PermissionResult.notRequired;
     }
 
-    final result = _mapStatus(status);
-    state = result;
-    return result;
+    // Android 6-9 (API 23-28): Request READ/WRITE_EXTERNAL_STORAGE
+    if (sdkVersion >= 23) {
+      final status = await Permission.storage.request();
+      developer.log(
+        'storage request result: $status',
+        name: 'PermissionController',
+      );
+      final result = _mapStatus(status);
+      state = result;
+      return result;
+    }
+
+    // Android 5 and below: No runtime permission needed
+    state = PermissionResult.notRequired;
+    return PermissionResult.notRequired;
   }
 
   /// Opens app settings so user can manually grant permission.
